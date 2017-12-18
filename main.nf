@@ -5,7 +5,7 @@ vim: syntax=groovy
 ========================================================================================
                N G I - R N A S E Q    B E S T    P R A C T I C E
 ========================================================================================
- New RNA-Seq Best Practice Analysis Pipeline. Started March 2016.
+ RNA-Seq Best Practice Analysis Pipeline
  #### Homepage / Documentation
  https://github.com/SciLifeLab/NGI-RNAseq
  #### Authors
