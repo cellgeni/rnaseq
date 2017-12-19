@@ -7,7 +7,7 @@ vim: syntax=groovy
 ========================================================================================
  RNA-Seq Best Practice Analysis Pipeline
  #### Homepage / Documentation
- https://github.com/SciLifeLab/NGI-RNAseq
+ https://github.com/cellgeni
  #### Authors
  Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
  Phil Ewels @ewels <phil.ewels@scilifelab.se>
