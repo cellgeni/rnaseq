@@ -3,35 +3,32 @@
 vim: syntax=groovy
 -*- mode: groovy;-*-
 ========================================================================================
-               N G I - R N A S E Q    B E S T    P R A C T I C E
+                         B U L K - R N A S E Q    P I P E L I N E
 ========================================================================================
- RNA-Seq Best Practice Analysis Pipeline
+ Cellular Genetics bulk-RNA-Seq analysis pipeline, Wellcome Sanger Institute
  #### Homepage / Documentation
- https://github.com/cellgeni
+ https://github.com/cellgeni/RNAseq
  #### Authors
  Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
- Phil Ewels @ewels <phil.ewels@scilifelab.se>
- Rickard Hammarén @Hammarn  <rickard.hammaren@scilifelab.se>
- Docker and AWS integration by
- Denis Moreno @Galithil <denis.moreno@scilifelab.se>
+ Original development by SciLifeLabs
 ----------------------------------------------------------------------------------------
 */
 
 def helpMessage() {
     log.info"""
     =========================================
-     NGI-RNAseq : RNA-Seq Best Practice v${version}
+     Bulk-RNA-Seq pipeline v${version}
     =========================================
     Usage:
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run SciLifeLab/NGI-RNAseq --reads '*_R{1,2}.fastq.gz' --genome GRCh37 -profile uppmax
+    nextflow run cellgeni/RNAseq --reads '*_R{1,2}.fastq.gz' --genome GRCh37 -profile farm3
 
     Mandatory arguments:
       --reads                       Path to input data (must be surrounded with quotes)
       --genome                      Name of iGenomes reference
-      -profile                      Hardware config to use. uppmax / uppmax_modules / hebbe / docker / aws
+      -profile                      Hardware config to use. farm3 / farm4 / openstack / docker / aws
 
     Options:
       --singleEnd                   Specifies that the input is single end reads
@@ -74,9 +71,9 @@ def helpMessage() {
  */
 
 // Pipeline version
-version = '1.4dev'
+version = '1.3'
 
-// Show help emssage
+// Show help message
 params.help = false
 if (params.help){
     helpMessage()
@@ -224,7 +221,7 @@ Channel
 
 // Header log info
 log.info "========================================="
-log.info " NGI-RNAseq : RNA-Seq Best Practice v${version}"
+log.info " Bulk-RNA-Seq CGI pipeline v${version}"
 log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
@@ -1064,9 +1061,9 @@ process get_software_versions {
 
     def sw_yaml_file = task.workDir.resolve('software_versions_mqc.yaml')
     sw_yaml_file.text  = """
-    id: 'ngi-rnaseq'
-    section_name: 'NGI-RNAseq Software Versions'
-    section_href: 'https://github.com/SciLifeLab/NGI-RNAseq'
+    id: 'rnaseq'
+    section_name: 'RNAseq Software Versions'
+    section_href: 'https://github.com/cellgeni/RNAseq'
     plot_type: 'html'
     description: 'are collected at run time from the software output.'
     data: |
@@ -1135,114 +1132,4 @@ process output_documentation {
     """
     markdown_to_html.r $output_docs results_description.html $rlocation
     """
-}
-
-
-/*
- * Completion e-mail notification
- */
-workflow.onComplete {
-
-    // Set up the e-mail variables
-    def subject = "[NGI-RNAseq] Successful: $workflow.runName"
-    if(skipped_poor_alignment.size() > 0){
-        subject = "[NGI-RNAseq] Partially Successful (${skipped_poor_alignment.size()} skipped): $workflow.runName"
-    }
-    if(!workflow.success){
-      subject = "[NGI-RNAseq] FAILED: $workflow.runName"
-    }
-    def email_fields = [:]
-    email_fields['version'] = version
-    email_fields['runName'] = custom_runName ?: workflow.runName
-    email_fields['success'] = workflow.success
-    email_fields['dateComplete'] = workflow.complete
-    email_fields['duration'] = workflow.duration
-    email_fields['exitStatus'] = workflow.exitStatus
-    email_fields['errorMessage'] = (workflow.errorMessage ?: 'None')
-    email_fields['errorReport'] = (workflow.errorReport ?: 'None')
-    email_fields['commandLine'] = workflow.commandLine
-    email_fields['projectDir'] = workflow.projectDir
-    email_fields['summary'] = summary
-    email_fields['summary']['Date Started'] = workflow.start
-    email_fields['summary']['Date Completed'] = workflow.complete
-    email_fields['summary']['Pipeline script file path'] = workflow.scriptFile
-    email_fields['summary']['Pipeline script hash ID'] = workflow.scriptId
-    if(workflow.repository) email_fields['summary']['Pipeline repository Git URL'] = workflow.repository
-    if(workflow.commitId) email_fields['summary']['Pipeline repository Git Commit'] = workflow.commitId
-    if(workflow.revision) email_fields['summary']['Pipeline Git branch/tag'] = workflow.revision
-    if(workflow.container) email_fields['summary']['Docker image'] = workflow.container
-    email_fields['software_versions'] = software_versions
-    email_fields['software_versions']['Nextflow Build'] = workflow.nextflow.build
-    email_fields['software_versions']['Nextflow Compile Timestamp'] = workflow.nextflow.timestamp
-    email_fields['skipped_poor_alignment'] = skipped_poor_alignment
-
-    // Render the TXT template
-    def engine = new groovy.text.GStringTemplateEngine()
-    def tf = new File("$baseDir/assets/email_template.txt")
-    def txt_template = engine.createTemplate(tf).make(email_fields)
-    def email_txt = txt_template.toString()
-
-    // Render the HTML template
-    def hf = new File("$baseDir/assets/email_template.html")
-    def html_template = engine.createTemplate(hf).make(email_fields)
-    def email_html = html_template.toString()
-
-    // Render the sendmail template
-    def smail_fields = [ email: params.email, subject: subject, email_txt: email_txt, email_html: email_html, baseDir: "$baseDir" ]
-    def sf = new File("$baseDir/assets/sendmail_template.txt")
-    def sendmail_template = engine.createTemplate(sf).make(smail_fields)
-    def sendmail_html = sendmail_template.toString()
-
-    // Send the HTML e-mail
-    if (params.email) {
-        try {
-          if( params.plaintext_email ){ throw GroovyException('Send plaintext e-mail, not HTML') }
-          // Try to send HTML e-mail using sendmail
-          [ 'sendmail', '-t' ].execute() << sendmail_html
-          log.info "[NGI-RNAseq] Sent summary e-mail to $params.email (sendmail)"
-        } catch (all) {
-          // Catch failures and try with plaintext
-          [ 'mail', '-s', subject, params.email ].execute() << email_txt
-          log.info "[NGI-RNAseq] Sent summary e-mail to $params.email (mail)"
-        }
-    }
-
-    // Switch the embedded MIME images with base64 encoded src
-    ngirnaseqlogo = new File("$baseDir/assets/NGI-RNAseq_logo.png").bytes.encodeBase64().toString()
-    scilifelablogo = new File("$baseDir/assets/SciLifeLab_logo.png").bytes.encodeBase64().toString()
-    ngilogo = new File("$baseDir/assets/NGI_logo.png").bytes.encodeBase64().toString()
-    email_html = email_html.replaceAll(~/cid:ngirnaseqlogo/, "data:image/png;base64,$ngirnaseqlogo")
-    email_html = email_html.replaceAll(~/cid:scilifelablogo/, "data:image/png;base64,$scilifelablogo")
-    email_html = email_html.replaceAll(~/cid:ngilogo/, "data:image/png;base64,$ngilogo")
-
-    // Write summary e-mail HTML to a file
-    def output_d = new File( "${params.outdir}/Documentation/" )
-    if( !output_d.exists() ) {
-      output_d.mkdirs()
-    }
-    def output_hf = new File( output_d, "pipeline_report.html" )
-    output_hf.withWriter { w -> w << email_html }
-    def output_tf = new File( output_d, "pipeline_report.txt" )
-    output_tf.withWriter { w -> w << email_txt }
-
-    if(skipped_poor_alignment.size() > 0){
-        log.info "[NGI-RNAseq] WARNING - ${skipped_poor_alignment.size()} samples skipped due to poor alignment scores!"
-    }
-
-    log.info "[NGI-RNAseq] Pipeline Complete"
-
-    if(!workflow.success){
-        if( workflow.profile == 'standard'){
-            if ( "hostname".execute().text.contains('.uppmax.uu.se') ) {
-                log.error "====================================================\n" +
-                        "  WARNING! You are running with the default 'standard'\n" +
-                        "  pipeline config profile, which runs on the head node\n" +
-                        "  and assumes all software is on the PATH.\n" +
-                        "  This is probably why everything broke.\n" +
-                        "  Please use `-profile uppmax` to run on UPPMAX clusters.\n" +
-                        "============================================================"
-            }
-        }
-    }
-
 }
