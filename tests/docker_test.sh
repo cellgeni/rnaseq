@@ -8,12 +8,14 @@ else
     script_path=$1
 fi
 
-data_path="/tmp"
 if [ -d "./test_data" ]
 then
-    data_path="./test_data"
     echo "Found data directory in current working directory, using ./test_data/"
+else
+    mkdir test_data
 fi
+
+data_path="./test_data"
 
 curl --version >/dev/null 2>&1 || { echo >&2 "I require curl, but it's not installed. Aborting."; exit 1; }
 tar --version >/dev/null 2>&1 || { echo >&2 "I require tar, but it's not installed. Aborting."; exit 1; }
