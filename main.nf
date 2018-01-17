@@ -71,7 +71,7 @@ def helpMessage() {
  */
 
 // Pipeline version
-version = '1.4'
+version = '1.5dev'
 
 // Show help message
 params.help = false
@@ -221,7 +221,7 @@ Channel
 
 // Header log info
 log.info "========================================="
-log.info " Bulk-RNA-Seq CGI pipeline v${version}"
+log.info "         RNASeq pipeline v${version}"
 log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
@@ -478,7 +478,7 @@ if(!params.bed12){
         output:
         file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
 
-        script: // This script is bundled with the pipeline, in NGI-RNAseq/bin/
+        script: // This script is bundled with the pipeline, in RNAseq/bin/
         """
         gtf2bed $gtf > ${gtf.baseName}.bed
         """
@@ -875,7 +875,7 @@ process dupradar {
     file "*.{pdf,txt}" into dupradar_results
     file '.command.log' into dupradar_stdout
 
-    script: // This script is bundled with the pipeline, in NGI-RNAseq/bin/
+    script: // This script is bundled with the pipeline, in RNAseq/bin/
     def paired = params.singleEnd ? 'FALSE' :  'TRUE'
     def rlocation = params.rlocation ?: ''
     """
@@ -1008,7 +1008,7 @@ process sample_correlation {
     when:
     num_bams > 2 && (!params.sampleLevel)
 
-    script: // This script is bundled with the pipeline, in NGI-RNAseq/bin/
+    script: // This script is bundled with the pipeline, in RNAseq/bin/
     def rlocation = params.rlocation ?: ''
     """
     edgeR_heatmap_MDS.r "rlocation=$rlocation" $input_files

@@ -1,7 +1,7 @@
 FROM openjdk:8
 
-LABEL authors="vk6@sanger.ac.uk,phil.ewels@scilifelab.se,rickard.hammaren@scilifelab.se,denis.moreno@scilifelab.se" \
-    description="Docker image containing all requirements for CGI RNAseq pipeline"
+LABEL authors="vk6@sanger.ac.uk" \
+    description="Docker image containing all requirements for RNAseq pipeline (originally developed at SciLifeLabs)"
 
 # Install container-wide requrements gcc, pip, zlib, libssl, make, libncurses, fortran77, g++, R
 RUN apt-get update && \
