@@ -28,7 +28,7 @@ then
     echo "Found existing test set, using $data_dir"
 else
     echo "Downloading test set..."
-    curl https://export.uppmax.uu.se/b2013064/test-data/ngi-rna_test_set.tar.bz2 > ${data_path}
+    curl https://export.uppmax.uu.se/b2013064/test-data/ngi-rna_test_set.tar.bz2 > ${data_path}/rnaseq_test_data.tar.bz2
     echo "Unpacking test set..."
     tar xvjf ${data_path}/ngi-rna_test_set.tar.bz2 -C ${data_path}
     echo "Done"
