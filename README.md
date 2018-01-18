@@ -1,9 +1,9 @@
 # RNAseq pipeline
-[![Nextflow](https://img.shields.io/badge/nextflow-%E2%89%A50.24.0-brightgreen.svg)](https://www.nextflow.io/)
+[![Build Status](https://travis-ci.org/cellgeni/RNAseq.svg?branch=devel)](https://travis-ci.org/cellgeni/RNAseq)
 
 ### Introduction
 
-RNAseq is a bioinformatics analysis pipeline used for RNA sequencing data at the [Cellular Genetics program](https://ngisweden.scilifelab.se/)
+RNAseq is a bioinformatics analysis pipeline used for RNA sequencing data at the [Cellular Genetics program](http://www.sanger.ac.uk/science/programmes/cellular-genetics)
 at [the Wellcome Sanger Institute](http://www.sanger.ac.uk/), Sweden.
 
 The pipeline uses [Nextflow](https://www.nextflow.io), a bioinformatics workflow tool. It pre-processes raw data from FastQ inputs, aligns the reads and performs extensive quality-control on the results.
