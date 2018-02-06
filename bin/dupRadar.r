@@ -1,26 +1,19 @@
 #!/usr/bin/env Rscript
 
 # Command line argument processing
-args = commandArgs(trailingOnly=TRUE)
+args <- commandArgs(trailingOnly=TRUE)
 if (length(args) < 3) {
-  stop("Usage: dupRadar.r <input.bam> <annotation.gtf> <paired/single> <R-package-location (optional)>", call.=FALSE)
+  stop("Usage: dupRadar.r <input.bam> <annotation.gtf> <paired/single>", call.=FALSE)
 }
+
 input_bam <- args[1]
 annotation_gtf <- args[2]
 paired_end <- if(args[3]=='paired') TRUE else FALSE
 input_bam_basename <- strsplit(input_bam, "\\.")[[1]][1]
 
-# Load / install packages
-if (length(args) > 3) { .libPaths( c( args[4], .libPaths() ) ) }
-if (!require("dupRadar")){
-  source("http://bioconductor.org/biocLite.R")
-  biocLite("dupRadar", suppressUpdates=TRUE)
-  library("dupRadar")
-}
-if (!require("parallel")) {
-  install.packages("parallel", dependencies=TRUE, repos='http://cloud.r-project.org/')
-  library("parallel")
-}
+# Load packages
+library(dupRadar)
+library(parallel)
 
 # Duplicate stats
 stranded <- 2

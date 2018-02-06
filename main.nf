@@ -60,7 +60,6 @@ def helpMessage() {
       --outdir                      The output directory where the results will be saved
       --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
       --sampleLevel                 Used to turn of the edgeR MDS and heatmap. Set automatically when running on fewer than 3 samples
-      --rlocation                   Location to save R-libraries used in the pipeline. Default value is ~/R/nxtflow_libs/
       --clusterOptions              Extra SLURM options, used in conjunction with Uppmax.config
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
     """.stripIndent()
@@ -71,7 +70,7 @@ def helpMessage() {
  */
 
 // Pipeline version
-version = '1.5dev'
+version = '1.5'
 
 // Show help message
 params.help = false
@@ -108,13 +107,6 @@ params.plaintext_email = false
 params.mdsplot_header = "$baseDir/assets/mdsplot_header.txt"
 params.heatmap_header = "$baseDir/assets/heatmap_header.txt"
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
-
-// R library locations
-params.rlocation = false
-if (params.rlocation){
-    nxtflow_libs = file(params.rlocation)
-    nxtflow_libs.mkdirs()
-}
 
 mdsplot_header = file(params.mdsplot_header)
 heatmap_header = file(params.heatmap_header)
@@ -263,7 +255,6 @@ if(workflow.revision) summary['Pipeline Release'] = workflow.revision
 summary['Current home']   = "$HOME"
 summary['Current user']   = "$USER"
 summary['Current path']   = "$PWD"
-summary['R libraries']    = params.rlocation
 summary['Script dir']     = workflow.projectDir
 summary['Config Profile'] = workflow.profile
 if(params.project) summary['UPPMAX Project'] = params.project
@@ -378,6 +369,9 @@ if(params.aligner == 'star' && !params.star_index && fasta){
         tag fasta
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
+
+        beforeScript "set +u; source activate RNASeq${version}"
+        afterScript "set +u; source deactivate"
 
         input:
         file fasta from fasta
@@ -494,6 +488,9 @@ process fastqc {
     publishDir "${params.outdir}/fastqc", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     set val(name), file(reads) from read_files_fastqc
 
@@ -520,6 +517,9 @@ process trim_galore {
             else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
             else params.saveTrimmed ? filename : null
         }
+
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
 
     input:
     set val(name), file(reads) from read_files_trimming
@@ -580,6 +580,9 @@ if(params.aligner == 'star'){
                 else params.saveAlignedIntermediates ? filename : null
             }
 
+        beforeScript "set +u; source activate RNASeq${version}"
+        afterScript "set +u; source deactivate"
+
         input:
         file reads from trimmed_reads
         file index from star_index.collect()
@@ -601,7 +604,7 @@ if(params.aligner == 'star'){
             --twopassMode Basic \\
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
-            --readFilesCommand zcat \\
+            --readFilesCommand gunzip -c \\
             --runDirPerm All_RWX \\
             --outFileNamePrefix $prefix
         """
@@ -626,6 +629,9 @@ if(params.aligner == 'hisat2'){
                 if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
                 else params.saveAlignedIntermediates ? filename : null
             }
+
+        beforeScript "set +u; source activate RNASeq${version}"
+        afterScript "set +u; source deactivate"
 
         input:
         file reads from trimmed_reads
@@ -683,6 +689,9 @@ if(params.aligner == 'hisat2'){
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename -> params.saveAlignedIntermediates ? "aligned_sorted/$filename" : null }
 
+        beforeScript "set +u; source activate RNASeq${version}"
+        afterScript "set +u; source deactivate"
+
         input:
         file hisat2_bam
 
@@ -731,6 +740,9 @@ process rseqc {
             else "$filename"
         }
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file bam_rseqc
     file bed12 from bed_rseqc.collect()
@@ -771,6 +783,9 @@ process genebody_coverage {
             else "$filename"
         }
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file bam_geneBodyCoverage
     file bed12 from bed_genebody_coverage.collect()
@@ -795,6 +810,9 @@ process preseq {
     tag "${bam_preseq.baseName - '.sorted'}"
     publishDir "${params.outdir}/preseq", mode: 'copy'
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file bam_preseq
 
@@ -818,6 +836,9 @@ process markDuplicates {
     publishDir "${params.outdir}/markDuplicates", mode: 'copy',
         saveAs: {filename -> filename.indexOf("_metrics.txt") > 0 ? "metrics/$filename" : "$filename"}
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file bam_markduplicates
 
@@ -835,7 +856,7 @@ process markDuplicates {
         avail_mem = task.memory.toGiga()
     }
     """
-    java -Xmx${avail_mem}g -jar \$PICARD_HOME/picard.jar MarkDuplicates \\
+    picard -Xmx${avail_mem}g MarkDuplicates \\
         INPUT=$bam_markduplicates \\
         OUTPUT=${bam_markduplicates.baseName}.markDups.bam \\
         METRICS_FILE=${bam_markduplicates.baseName}.markDups_metrics.txt \\
@@ -845,7 +866,7 @@ process markDuplicates {
         VALIDATION_STRINGENCY=LENIENT
 
     # Print version number to standard out
-    echo "File name: $bam_markduplicates Picard version "\$(java -Xmx2g -jar \$PICARD_HOME/picard.jar  MarkDuplicates --version 2>&1)
+    echo "File name: $bam_markduplicates Picard version "\$(picard -Xmx2g MarkDuplicates --version 2>&1)
     samtools index $bam_markduplicates
     """
 }
@@ -877,9 +898,8 @@ process dupradar {
 
     script: // This script is bundled with the pipeline, in RNAseq/bin/
     def paired = params.singleEnd ? 'FALSE' :  'TRUE'
-    def rlocation = params.rlocation ?: ''
     """
-    dupRadar.r $bam_md $gtf $paired $rlocation
+    dupRadar.r $bam_md $gtf $paired
     """
 }
 
@@ -896,6 +916,9 @@ process featureCounts {
             else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
             else "$filename"
         }
+
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
 
     input:
     file bam_featurecounts
@@ -931,6 +954,9 @@ process merge_featureCounts {
     tag "${input_files[0].baseName - '.sorted'}"
     publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file input_files from featureCounts_to_merge.collect()
 
@@ -955,6 +981,9 @@ process stringtieFPKM {
             else if (filename.indexOf("cov_refs.gtf") > 0) "cov_refs/$filename"
             else "$filename"
         }
+
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
 
     input:
     file bam_stringtieFPKM
@@ -1009,9 +1038,8 @@ process sample_correlation {
     num_bams > 2 && (!params.sampleLevel)
 
     script: // This script is bundled with the pipeline, in RNAseq/bin/
-    def rlocation = params.rlocation ?: ''
     """
-    edgeR_heatmap_MDS.r "rlocation=$rlocation" $input_files
+    edgeR_heatmap_MDS.r $input_files
     cat $mdsplot_header edgeR_MDS_Aplot_coordinates_mqc.csv >> tmp_file
     mv tmp_file edgeR_MDS_Aplot_coordinates_mqc.csv
     cat $heatmap_header log2CPM_sample_distances_mqc.csv >> tmp_file
@@ -1080,6 +1108,9 @@ process multiqc {
     tag "$prefix"
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
     input:
     file multiqc_config
     file (fastqc:'fastqc/*') from fastqc_results.collect()
@@ -1128,8 +1159,7 @@ process output_documentation {
     file "results_description.html"
 
     script:
-    def rlocation = params.rlocation ?: ''
     """
-    markdown_to_html.r $output_docs results_description.html $rlocation
+    markdown_to_html.r $output_docs results_description.html
     """
 }
