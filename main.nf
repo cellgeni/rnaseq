@@ -492,7 +492,8 @@ process cram2fastq {
     set val(name), file(reads) from read_files_cram
 
     output:
-    file "*fastq.gz" into cram2fastq_results
+    file "*fastq.gz" into cram2fastq_results_fastq
+    file "*fastq.gz" into cram2fastq_results_trim
     file '.command.out' into cram2fastq_stdout
     script:
     """
@@ -514,7 +515,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from cram2fastq_results
+    set val(name), file(reads) from cram2fastq_results_fastq
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -544,7 +545,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from cram2fastq_results
+    set val(name), file(reads) from cram2fastq_results_trim
 
     output:
     file "*fq.gz" into trimmed_reads
