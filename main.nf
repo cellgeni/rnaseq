@@ -100,7 +100,7 @@ params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2
 params.saveReference = false
 params.saveTrimmed = false
 params.saveAlignedIntermediates = false
-params.reads = "data/*{1,2}.fastq.gz"
+params.reads = "cram/*{1,2}.cram"
 params.outdir = './results'
 params.email = false
 params.plaintext_email = false
@@ -208,7 +208,7 @@ params.singleEnd = false
 Channel
     .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
     .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
-    .into { read_files_fastqc; read_files_trimming }
+    .into { read_files_cram }
 
 
 // Header log info
@@ -479,6 +479,28 @@ if(!params.bed12){
     }
 }
 
+/*
+ * STEP 1 - cram to fastq conversion
+ */
+
+process cram2fastq {
+
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
+    input:
+    set val(name), file(reads) from read_files_cram
+
+    output:
+    file "*fastq.gz" into cram2fastq_results
+    file '.command.out' into cram2fastq_stdout
+    script:
+    """
+    set -e
+    samtools collate -Ou > cram_collated
+    samtools fastq cram_collated
+    """
+}
 
 /*
  * STEP 1 - FastQC
@@ -492,7 +514,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from read_files_fastqc
+    set val(name), file(reads) from cram2fastq_results
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -522,7 +544,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from read_files_trimming
+    set val(name), file(reads) from cram2fastq_results
 
     output:
     file "*fq.gz" into trimmed_reads
