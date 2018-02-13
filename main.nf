@@ -498,7 +498,6 @@ process cram2fastq {
     file "*fastq.gz" into cram2fastq_results_trim
     file '.command.out' into cram2fastq_stdout
     script:
-    prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
     """
     samtools collate -Ou $reads $name > cram_collated
     samtools fastq cram_collated
