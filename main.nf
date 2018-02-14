@@ -490,8 +490,7 @@ process cram2fastq {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from read_files_cram
-
+    file reads from read_files_cram
 
     output:
     file "*fastq.gz" into cram2fastq_results_fastq
@@ -499,8 +498,8 @@ process cram2fastq {
     file '.command.out' into cram2fastq_stdout
     script:
     """
-    samtools collate -Ou $reads $name > cram_collated
-    samtools fastq cram_collated
+    samtools sort $reads > bams
+    samtools fastq -1 $reads_1.fastq -2 $reads_2.fastq bams
     """
 }
 
