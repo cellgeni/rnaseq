@@ -490,7 +490,7 @@ process cram2fastq {
     afterScript "set +u; source deactivate"
 
     input:
-    file reads from read_files_cram
+    set val(name), file(reads) from read_files_cram
 
     output:
     file "*fastq.gz" into cram2fastq_results_fastq
