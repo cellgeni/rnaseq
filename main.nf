@@ -493,8 +493,8 @@ process cram2fastq {
     set val(name), file(reads) from read_files_cram
 
     output:
-    file "*fastq.gz" into cram2fastq_results_fastq
-    file "*fastq.gz" into cram2fastq_results_trim
+    file "*fastq" into cram2fastq_results_fastq
+    file "*fastq" into cram2fastq_results_trim
     file '.command.out' into cram2fastq_stdout
     script:
     """
