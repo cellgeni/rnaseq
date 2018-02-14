@@ -499,7 +499,7 @@ process cram2fastq {
     script:
     """
     samtools sort $reads > bams
-    samtools fastq -1 $reads\_1.fastq -2 $reads\_2.fastq bams
+    samtools fastq -1 ${reads}_1.fastq -2 ${reads}_2.fastq bams
     """
 }
 
