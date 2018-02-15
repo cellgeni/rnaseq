@@ -39,6 +39,7 @@ def helpMessage() {
 
     References                      If not specified in the configuration file or you wish to overwrite any of the references.
       --star_index                  Path to STAR index
+      --star_overhang               sjdbOverhang parameter for building a STAR index (has to be (read_length - 1))
       --fasta                       Path to Fasta reference
       --gtf                         Path to GTF file
       --bed12                       Path to bed12 file
@@ -87,6 +88,7 @@ params.forward_stranded = false
 params.reverse_stranded = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
+params.star_overhang = '74'
 params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
@@ -100,7 +102,7 @@ params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2
 params.saveReference = false
 params.saveTrimmed = false
 params.saveAlignedIntermediates = false
-params.reads = "cram/*{1,2}.cram"
+params.reads = "cram/*.cram"
 params.outdir = './results'
 params.email = false
 params.plaintext_email = false
@@ -387,7 +389,7 @@ if(params.aligner == 'star' && !params.star_index && fasta){
             --runMode genomeGenerate \\
             --runThreadN ${task.cpus} \\
             --sjdbGTFfile $gtf \\
-            --sjdbOverhang 149 \\
+            --sjdbOverhang ${params.star_overhang} \\
             --genomeDir star/ \\
             --genomeFastaFiles $fasta
         """
