@@ -499,11 +499,11 @@ process cram2fastq {
     file "*fastq" into cram2fastq_results_trim
     file '.command.out' into cram2fastq_stdout
     script:
+    def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
     """
     samtools sort \\
-        -m ${task.memory} \\
         -n \\ 
-        -@ ${task.cpus} \\
+        -@ ${task.cpus} $avail_mem \\
         $reads | \\
         samtools fastq \\
             -N \\
