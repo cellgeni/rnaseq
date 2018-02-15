@@ -499,7 +499,7 @@ process cram2fastq {
     file "*fastq" into cram2fastq_results_trim
     file '.command.out' into cram2fastq_stdout
     script:
-    def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
+    def avail_mem = task.memory == null ? '' : "-m ${ ( task.memory.toBytes() - 1000000000 ) / task.cpus}" // samtools consumes more than what's available
     """
     samtools sort \\
         -n \\
