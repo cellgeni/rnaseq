@@ -507,8 +507,8 @@ process cram2fastq {
         $reads | \\
         samtools fastq \\
             -N \\
-            -@ ${task.cpus} 
-            -1 ${reads}_1.fastq 
+            -@ ${task.cpus} \\
+            -1 ${reads}_1.fastq \\
             -2 ${reads}_2.fastq \\
             -
     """
