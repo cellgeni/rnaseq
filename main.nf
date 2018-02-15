@@ -500,8 +500,17 @@ process cram2fastq {
     file '.command.out' into cram2fastq_stdout
     script:
     """
-    samtools sort $reads > bams
-    samtools fastq -1 ${reads}_1.fastq -2 ${reads}_2.fastq bams
+    samtools sort \\
+        -m ${task.memory} \\
+        -n \\ 
+        -@ ${task.cpus} \\
+        $reads | \\
+        samtools fastq \\
+            -N \\
+            -@ ${task.cpus} 
+            -1 ${reads}_1.fastq 
+            -2 ${reads}_2.fastq \\
+            -
     """
 }
 
