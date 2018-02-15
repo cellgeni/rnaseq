@@ -502,7 +502,7 @@ process cram2fastq {
     def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
     """
     samtools sort \\
-        -n \\ 
+        -n \\
         -@ ${task.cpus} $avail_mem \\
         $reads | \\
         samtools fastq \\
