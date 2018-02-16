@@ -485,7 +485,7 @@ if(!params.bed12){
  * STEP 1 - cram to fastq conversion
  */
 
-process cram2fastq {
+process cram_sort {
     tag "$name" 
     
     beforeScript "set +u; source activate RNASeq${version}"
@@ -495,22 +495,31 @@ process cram2fastq {
     set val(name), file(reads) from read_files_cram
 
     output:
+    file "*cram" into sorted_cram
+    script:
+    """
+    samtools sort $reads
+    """
+}
+
+process cram2fastq {
+    tag "$name" 
+    
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
+    input:
+    set val(name), file(reads) from sorted_cram
+
+    output:
     file "*fastq" into cram2fastq_results_fastq
     file "*fastq" into cram2fastq_results_trim
-    file '.command.out' into cram2fastq_stdout
     script:
-    def avail_mem = task.memory == null ? '' : "-m ${ ( task.memory.toBytes() - 1000000000 ) / task.cpus}" // samtools consumes more than what's available
     """
-    samtools sort \\
-        -n \\
-        -@ ${task.cpus} $avail_mem \\
-        $reads | \\
-        samtools fastq \\
-            -N \\
-            -@ ${task.cpus} \\
-            -1 ${reads}_1.fastq \\
-            -2 ${reads}_2.fastq \\
-            -
+    samtools fastq \\
+        -1 ${reads}_1.fastq \\
+        -2 ${reads}_2.fastq \\
+        -
     """
 }
 
