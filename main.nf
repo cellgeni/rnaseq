@@ -488,7 +488,7 @@ process cram_sort {
     set val(name), file(reads) from read_files_cram
 
     output:
-    file "*cram" into sorted_cram
+    file "*" into sorted_cram
     script:
     """
     samtools sort $reads
