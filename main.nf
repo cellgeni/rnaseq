@@ -30,8 +30,6 @@ def helpMessage() {
       --genome                      Name of iGenomes reference
       -profile                      Hardware config to use. farm3 / farm4 / openstack / docker / aws
 
-    Options:
-      --singleEnd                   Specifies that the input is single end reads
     Strandedness:
       --forward_stranded            The library is forward stranded
       --reverse_stranded            The library is reverse stranded
@@ -206,12 +204,7 @@ if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
 /*
  * Create a channel for input read files
  */
-params.singleEnd = false
-Channel
-    .fromFilePairs( params.reads, size: params.singleEnd ? 1 : 2 )
-    .ifEmpty { exit 1, "Cannot find any reads matching: ${params.reads}\nNB: Path needs to be enclosed in quotes!\nNB: Path requires at least one * wildcard!\nIf this is single-end data, please specify --singleEnd on the command line." }
-    .set { read_files_cram }
-
+read_files_cram = Channel.fromPath( params.reads )
 
 // Header log info
 log.info "========================================="
@@ -220,7 +213,7 @@ log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Reads']        = params.reads
-summary['Data Type']    = params.singleEnd ? 'Single-End' : 'Paired-End'
+summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
 if( params.pico ) summary['Library Prep'] = "SMARTer Stranded Total RNA-Seq Kit - Pico Input"
 summary['Strandedness'] = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
@@ -578,15 +571,9 @@ process trim_galore {
     c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
     tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
     tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
-    if (params.singleEnd) {
-        """
-        trim_galore --fastqc --gzip $c_r1 $tpc_r1 $reads
-        """
-    } else {
-        """
-        trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $reads
-        """
-    }
+    """
+    trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $reads
+    """
 }
 
 
@@ -691,40 +678,25 @@ if(params.aligner == 'hisat2'){
         prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         def rnastrandness = ''
         if (forward_stranded && !unstranded){
-            rnastrandness = params.singleEnd ? '--rna-strandness F' : '--rna-strandness FR'
+            rnastrandness = '--rna-strandness FR'
         } else if (reverse_stranded && !unstranded){
-            rnastrandness = params.singleEnd ? '--rna-strandness R' : '--rna-strandness RF'
+            rnastrandness = '--rna-strandness RF'
         }
-        if (params.singleEnd) {
-            """
-            hisat2 -x $index_base \\
-                   -U $reads \\
-                   $rnastrandness \\
-                   --known-splicesite-infile $alignment_splicesites \\
-                   -p ${task.cpus} \\
-                   --met-stderr \\
-                   --new-summary \\
-                   --summary-file ${prefix}.hisat2_summary.txt \\
-                   | samtools view -bS -F 4 -F 256 - > ${prefix}.bam
-            hisat2 --version
-            """
-        } else {
-            """
-            hisat2 -x $index_base \\
-                   -1 ${reads[0]} \\
-                   -2 ${reads[1]} \\
-                   $rnastrandness \\
-                   --known-splicesite-infile $alignment_splicesites \\
-                   --no-mixed \\
-                   --no-discordant \\
-                   -p ${task.cpus} \\
-                   --met-stderr \\
-                   --new-summary \\
-                   --summary-file ${prefix}.hisat2_summary.txt \\
-                   | samtools view -bS -F 4 -F 8 -F 256 - > ${prefix}.bam
-            hisat2 --version
-            """
-        }
+        """
+        hisat2 -x $index_base \\
+                -1 ${reads[0]} \\
+                -2 ${reads[1]} \\
+                $rnastrandness \\
+                --known-splicesite-infile $alignment_splicesites \\
+                --no-mixed \\
+                --no-discordant \\
+                -p ${task.cpus} \\
+                --met-stderr \\
+                --new-summary \\
+                --summary-file ${prefix}.hisat2_summary.txt \\
+                | samtools view -bS -F 4 -F 8 -F 256 - > ${prefix}.bam
+        hisat2 --version
+        """
     }
 
     process hisat2_sortOutput {
@@ -796,9 +768,9 @@ process rseqc {
     script:
     def strandRule = ''
     if (forward_stranded && !unstranded){
-        strandRule = params.singleEnd ? '-d ++,--' : '-d 1++,1--,2+-,2-+'
+        strandRule = '-d 1++,1--,2+-,2-+'
     } else if (reverse_stranded && !unstranded){
-        strandRule = params.singleEnd ? '-d +-,-+' : '-d 1+-,1-+,2++,2--'
+        strandRule = '-d 1+-,1-+,2++,2--'
     }
     """
     samtools index $bam_rseqc
@@ -939,10 +911,9 @@ process dupradar {
     file "*.{pdf,txt}" into dupradar_results
     file '.command.log' into dupradar_stdout
 
-    script: // This script is bundled with the pipeline, in RNAseq/bin/
-    def paired = params.singleEnd ? 'FALSE' :  'TRUE'
+    script:
     """
-    dupRadar.r $bam_md $gtf $paired
+    dupRadar.r $bam_md $gtf 'TRUE'
     """
 }
 
