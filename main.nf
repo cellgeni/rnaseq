@@ -83,7 +83,7 @@ if (params.help){
 // Configurable variables
 params.name = false
 params.project = false
-params.genome = false
+params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
 params.unstranded = false
