@@ -478,6 +478,23 @@ if(!params.bed12){
  * STEP 1 - cram to fastq conversion
  */
 
+process cram_sort {
+    tag "$name" 
+    
+    beforeScript "set +u; source activate RNASeq${version}"
+    afterScript "set +u; source deactivate"
+
+    input:
+    file(reads) from read_files_cram
+
+    output:
+    file "*" into sorted_cram
+    script:
+    """
+    samtools sort $reads
+    """
+}
+
 process cram2fastq {
     tag "$name" 
     
@@ -485,19 +502,17 @@ process cram2fastq {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from read_files_cram
+    set val(name), file(reads) from sorted_cram
 
     output:
     file "*fastq" into cram2fastq_results_fastq
     file "*fastq" into cram2fastq_results_trim
     script:
     """
-    samtools sort \\
-        $reads | \\
-        samtools fastq \\
-            -1 ${reads}_1.fastq \\
-            -2 ${reads}_2.fastq \\
-            -
+    samtools fastq \\
+        -1 ${reads}_1.fastq \\
+        -2 ${reads}_2.fastq \\
+        -
     """
 }
 
