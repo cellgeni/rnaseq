@@ -479,7 +479,7 @@ if(!params.bed12){
  */
 
 process cram_sort {
-    tag "$name" 
+    tag "${reads.baseName}"
     
     beforeScript "set +u; source activate RNASeq${version}"
     afterScript "set +u; source deactivate"
@@ -488,11 +488,11 @@ process cram_sort {
     file(reads) from read_files_cram
 
     output:
-    file "${read_files_cram.baseName}.sorted.bam" into sorted_cram
+    file "${reads.baseName}.sorted.bam" into sorted_cram
     script:
     """
     samtools sort $reads \\
-        -o ${read_files_cram.baseName}.sorted.bam
+        -o ${reads.baseName}.sorted.bam
     """
 }
 
