@@ -497,13 +497,13 @@ process cram_sort {
 }
 
 process cram2fastq {
-    tag "${sorted_cram.baseName}" 
+    tag "${bam.baseName}" 
     
     beforeScript "set +u; source activate RNASeq${version}"
     afterScript "set +u; source deactivate"
 
     input:
-    sorted_cram
+    file(bam) from sorted_cram
 
     output:
     file "*.fastq" into fastq_fastqc
@@ -511,8 +511,8 @@ process cram2fastq {
     script:
     """
     samtools fastq \\
-        -1 ${sorted_cram.baseName}_1.fastq \\
-        -2 ${sorted_cram.baseName}_2.fastq \\
+        -1 ${bam.baseName}_1.fastq \\
+        -2 ${bam.baseName}_2.fastq \\
         -
     """
 }
