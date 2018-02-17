@@ -506,8 +506,8 @@ process cram2fastq {
     sorted_cram
 
     output:
-    file "*.fastq" into cram2fastq_results_fastq
-    file "*.fastq" into cram2fastq_results_trim
+    file "*.fastq" into fastq_fastqc
+    file "*.fastq" into fastq_trim_galore
     script:
     """
     samtools fastq \\
@@ -529,7 +529,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from cram2fastq_results_fastq
+    set val(name), file(reads) from fastq_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -541,7 +541,6 @@ process fastqc {
     fastqc --version
     """
 }
-
 
 /*
  * STEP 2 - Trim Galore!
@@ -559,7 +558,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from cram2fastq_results_trim
+    set val(name), file(reads) from fastq_trim_galore
 
     output:
     file "*fq.gz" into trimmed_reads
