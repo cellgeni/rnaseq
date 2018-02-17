@@ -529,7 +529,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from fastq_fastqc
+    file reads from fastq_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -558,7 +558,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(name), file(reads) from fastq_trim_galore
+    file reads from fastq_trim_galore
 
     output:
     file "*fq.gz" into trimmed_reads
