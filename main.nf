@@ -488,10 +488,11 @@ process cram_sort {
     file(reads) from read_files_cram
 
     output:
-    file "*" into sorted_cram
+    file "${read_files_cram.baseName}.sorted.bam" into sorted_cram
     script:
     """
-    samtools sort $reads
+    samtools sort $reads \\
+        -o ${read_files_cram.baseName}.sorted.bam
     """
 }
 
