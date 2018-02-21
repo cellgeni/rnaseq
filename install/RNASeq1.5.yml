@@ -1,4 +1,4 @@
-name: RNASeq1.5
+name: rnaseq1.5
 channels:
   - conda-forge
   - bioconda

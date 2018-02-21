@@ -144,10 +144,10 @@ To use HISAT2, use the parameter `--aligner hisat2` or set `params.aligner = 'hi
 
 The pipeline config files come bundled with paths to the illumina iGenomes reference index files. If you are running on UPPMAX, these should work without any additional configuration. If running on AWS, the configuration is set up to use the [AWS-iGenomes](https://ewels.github.io/AWS-iGenomes/) resource.
 
-### `--genome` (using iGenomes)
-There are 31 different species supported in the iGenomes references. To run the pipeline, you must specify which to use with the `--genome` flag.
+### `--genome`
+There are 31 different species supported in the Genomes references. To run the pipeline, you must specify which to use with the `--genome` flag.
 
-You can find the keys to specify the genomes in the [iGenomes config file](https://github.com/SciLifeLab/NGI-RNAseq/blob/master/conf/igenomes.config). Common genomes that are supported are:
+You can find the keys to specify the genomes in the [Genomes config file](https://github.com/SciLifeLab/NGI-RNAseq/blob/master/conf/genomes.config). Common genomes that are supported are:
 
 * Human
   * `--genome GRCh37`
