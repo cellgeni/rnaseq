@@ -516,17 +516,17 @@ process merge_sample_crams {
  */
 
 process cram2fastq {
-    tag "${reads.baseName}"
+    tag "${cram.baseName}"
     
     beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
-    file(reads) from sample_cram_file
+    file cram from sample_cram_file
 
     output:
-    file "*.fastq" into fastq_fastqc
-    file "*.fastq" into fastq_trim_galore
+    set val(cram.baseName), file("*.fastq") into fastq_fastqc
+    set val(cram.baseName), file("*.fastq") into fastq_trim_galore
 
     script:
     // samtools consumes more than what's available
@@ -535,13 +535,13 @@ process cram2fastq {
     samtools sort \\
         -n \\
         -@ ${task.cpus} \\
-        -m $avail_mem \\
-        $reads | \\
+        -m ${avail_mem} \\
+        ${cram} | \\
         samtools fastq \\
             -N \\
             -@ ${task.cpus} \\
-            -1 ${reads}_1.fastq \\
-            -2 ${reads}_2.fastq \\
+            -1 ${cram.baseName}_1.fastq \\
+            -2 ${cram.baseName}_2.fastq \\
             -
     """
 }
@@ -550,7 +550,7 @@ process cram2fastq {
  * STEP 1 - FastQC
  */
 process fastqc {
-    tag "$name"
+    tag "$sample"
     publishDir "${params.outdir}/fastqc", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
@@ -558,7 +558,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    file reads from fastq_fastqc
+    set val(sample), file(reads) from fastq_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -575,7 +575,7 @@ process fastqc {
  * STEP 2 - Trim Galore!
  */
 process trim_galore {
-    tag "$name"
+    tag "$sample"
     publishDir "${params.outdir}/trim_galore", mode: 'copy',
         saveAs: {filename ->
             if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
@@ -587,7 +587,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    file reads from fastq_trim_galore
+    set val(sample), file(reads) fastq_trim_galore
 
     output:
     file "*fq.gz" into trimmed_reads
