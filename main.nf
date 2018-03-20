@@ -525,8 +525,8 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set cram.baseName, file("*.fastq") into fastq_fastqc
-    set cram.baseName, file("*.fastq") into fastq_trim_galore
+    set cram, file("*.fastq") into fastq_fastqc
+    set cram, file("*.fastq") into fastq_trim_galore
 
     script:
     // samtools consumes more than what's available
@@ -550,7 +550,7 @@ process cram2fastq {
  * STEP 1 - FastQC
  */
 process fastqc {
-    tag "$sample"
+    tag "${cram.baseName}"
     publishDir "${params.outdir}/fastqc", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
@@ -558,7 +558,7 @@ process fastqc {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(sample), file(reads) from fastq_fastqc
+    set val(cram), file(reads) from fastq_fastqc
 
     output:
     file "*_fastqc.{zip,html}" into fastqc_results
@@ -575,7 +575,7 @@ process fastqc {
  * STEP 2 - Trim Galore!
  */
 process trim_galore {
-    tag "$sample"
+    tag "${cram.baseName}"
     publishDir "${params.outdir}/trim_galore", mode: 'copy',
         saveAs: {filename ->
             if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
@@ -587,7 +587,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(sample), file(reads) fastq_trim_galore
+    set val(cram), file(reads) fastq_trim_galore
 
     output:
     file "*fq.gz" into trimmed_reads
