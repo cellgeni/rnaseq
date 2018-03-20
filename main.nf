@@ -79,6 +79,8 @@ if (params.help){
 }
 
 // Configurable variables
+params.irods_username = 'vk6'
+params.irods_keytab = '~/irods.keytab'
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
