@@ -587,7 +587,7 @@ process trim_galore {
     afterScript "set +u; source deactivate"
 
     input:
-    set val(cram), file(reads) fastq_trim_galore
+    set val(cram), file(reads) from fastq_trim_galore
 
     output:
     file "*fq.gz" into trimmed_reads
