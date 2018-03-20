@@ -525,8 +525,8 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set val(cram.baseName), file("*.fastq") into fastq_fastqc
-    set val(cram.baseName), file("*.fastq") into fastq_trim_galore
+    set cram.baseName, file("*.fastq") into fastq_fastqc
+    set cram.baseName, file("*.fastq") into fastq_trim_galore
 
     script:
     // samtools consumes more than what's available
