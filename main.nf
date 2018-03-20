@@ -201,11 +201,6 @@ if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
 }
 
 
-/*
- * Create a channel for input read files
- */
-read_files_cram = Channel.fromPath( params.reads )
-
 // Header log info
 log.info "========================================="
 log.info "         RNASeq pipeline v${version}"
@@ -365,7 +360,7 @@ if(params.aligner == 'star' && !params.star_index && fasta){
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
-        beforeScript "set +u; source activate RNASeq${version}"
+        beforeScript "set +u; source activate rnaseq${version}"
         afterScript "set +u; source deactivate"
 
         input:
@@ -475,17 +470,57 @@ if(!params.bed12){
 }
 
 /*
+ * Create a channel for input sample ids
+ */
+sample_list = Channel.fromPath('samples.txt')
+
+process irods {
+    tag "${sample}"
+    
+    beforeScript "kinit ${params.irods_username} -k -t ${params.irods_keytab}"
+    input: 
+        val sample from sample_list.flatMap{ it.readLines() }
+    output: 
+        set val(sample), file('*.cram') into cram_files
+    script:
+    """
+    imeta qu -z seq \\
+        -d sample = ${sample} \\
+        and target = 1 and manual_qc = 1 \\
+    | sed ':a;N;\$!ba;s/----\\ncollection:/iget -K/g' \\
+    | sed ':a;N;\$!ba;s/\\ndataObj: /\\//g' \\
+    | bash
+    """
+}
+
+process merge_sample_crams {
+    tag "${sample}"
+
+    beforeScript "set +u; source activate rnaseq${version}"
+    afterScript "set +u; source deactivate"
+
+    input: 
+        set val(sample), file(crams) from cram_files
+    output: 
+        file "${sample}.cram" into sample_cram_file
+    script:
+    """
+    samtools merge -f ${sample}.cram ${crams}
+    """
+}
+
+/*
  * STEP 1 - cram to fastq conversion
  */
 
 process cram2fastq {
     tag "${reads.baseName}"
     
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
-    file(reads) from read_files_cram
+    file(reads) from sample_cram_file
 
     output:
     file "*.fastq" into fastq_fastqc
@@ -517,7 +552,7 @@ process fastqc {
     publishDir "${params.outdir}/fastqc", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -546,7 +581,7 @@ process trim_galore {
             else params.saveTrimmed ? filename : null
         }
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -602,7 +637,7 @@ if(params.aligner == 'star'){
                 else params.saveAlignedIntermediates ? filename : null
             }
 
-        beforeScript "set +u; source activate RNASeq${version}"
+        beforeScript "set +u; source activate rnaseq${version}"
         afterScript "set +u; source deactivate"
 
         input:
@@ -652,7 +687,7 @@ if(params.aligner == 'hisat2'){
                 else params.saveAlignedIntermediates ? filename : null
             }
 
-        beforeScript "set +u; source activate RNASeq${version}"
+        beforeScript "set +u; source activate rnaseq${version}"
         afterScript "set +u; source deactivate"
 
         input:
@@ -696,7 +731,7 @@ if(params.aligner == 'hisat2'){
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename -> params.saveAlignedIntermediates ? "aligned_sorted/$filename" : null }
 
-        beforeScript "set +u; source activate RNASeq${version}"
+        beforeScript "set +u; source activate rnaseq${version}"
         afterScript "set +u; source deactivate"
 
         input:
@@ -747,7 +782,7 @@ process rseqc {
             else "$filename"
         }
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -790,7 +825,7 @@ process genebody_coverage {
             else "$filename"
         }
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -817,7 +852,7 @@ process preseq {
     tag "${bam_preseq.baseName - '.sorted'}"
     publishDir "${params.outdir}/preseq", mode: 'copy'
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -843,7 +878,7 @@ process markDuplicates {
     publishDir "${params.outdir}/markDuplicates", mode: 'copy',
         saveAs: {filename -> filename.indexOf("_metrics.txt") > 0 ? "metrics/$filename" : "$filename"}
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -923,7 +958,7 @@ process featureCounts {
             else "$filename"
         }
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -960,7 +995,7 @@ process merge_featureCounts {
     tag "${input_files[0].baseName - '.sorted'}"
     publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -988,7 +1023,7 @@ process stringtieFPKM {
             else "$filename"
         }
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
@@ -1114,7 +1149,7 @@ process multiqc {
     tag "$prefix"
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
-    beforeScript "set +u; source activate RNASeq${version}"
+    beforeScript "set +u; source activate rnaseq${version}"
     afterScript "set +u; source deactivate"
 
     input:
