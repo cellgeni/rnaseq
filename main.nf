@@ -528,24 +528,29 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set val(cram), file("*.fastq") into fastq_fastqc
-    set val(cram), file("*.fastq") into fastq_trim_galore
+    set val(cram), file("*.fastq") optional true into fastq_fastqc
+    set val(cram), file("*.fastq") optional true into fastq_trim_galore
 
     script:
     // samtools consumes more than what's available
     def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
-    samtools sort \\
-        -n \\
-        -@ ${task.cpus} \\
-        -m ${avail_mem} \\
-        ${cram} | \\
-        samtools fastq \\
-            -N \\
+    # check that the size of the cram file is >100Mb
+    minimumsize=100000
+    actualsize=\$(du -k "${cram}" | cut -f 1)
+    if [ \$actualsize -ge \$minimumsize ]; then
+        samtools sort \\
+            -n \\
             -@ ${task.cpus} \\
-            -1 ${cram.baseName}_1.fastq \\
-            -2 ${cram.baseName}_2.fastq \\
-            -
+            -m ${avail_mem} \\
+            ${cram} | \\
+            samtools fastq \\
+                -N \\
+                -@ ${task.cpus} \\
+                -1 ${cram.baseName}_1.fastq \\
+                -2 ${cram.baseName}_2.fastq \\
+                -
+    fi
     """
 }
 
