@@ -536,8 +536,8 @@ process cram2fastq {
     def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
     # check that the size of the cram file is >100Mb
-    minimumsize=100000
-    actualsize=\$(du -k "${cram}" | cut -f 1)
+    minimumsize=100000000
+    actualsize=\$(wc -c <"${cram}")
     if [ \$actualsize -ge \$minimumsize ]; then
         samtools sort \\
             -n \\
