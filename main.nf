@@ -528,7 +528,7 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    // set val(cram), file("*.fastq") optional true into fastq_fastqc
+    set val(cram), file("*.fastq") optional true into fastq_fastqc
     set val(cram), file("*.fastq") optional true into fastq_trim_galore
 
     script:
@@ -557,14 +557,14 @@ process cram2fastq {
 /*
  * STEP 1 - FastQC
  */
-if(false){
 process fastqc {
     tag "${cram.baseName}"
     publishDir "${params.outdir}/fastqc", mode: 'copy',
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
+    beforeScript "set +u; source /nfs/cellgeni/.cellgenirc"
+    // beforeScript "set +u; source activate rnaseq${version}"
+    // afterScript "set +u; source deactivate"
 
     input:
     set val(cram), file(reads) from fastq_fastqc
@@ -579,7 +579,7 @@ process fastqc {
     fastqc --version
     """
 }
-}
+
 /*
  * STEP 2 - Trim Galore!
  */
@@ -1115,7 +1115,7 @@ process get_software_versions {
     executor 'local'
 
     input:
-//    val fastqc from fastqc_stdout.collect()
+    val fastqc from fastqc_stdout.collect()
     val trim_galore from trimgalore_logs.collect()
     val star from star_log.collect()
     val stringtie from stringtie_stdout.collect()
@@ -1165,7 +1165,7 @@ process multiqc {
 
     input:
     file multiqc_config
-//    file (fastqc:'fastqc/*') from fastqc_results.collect()
+    file (fastqc:'fastqc/*') from fastqc_results.collect()
     file ('trimgalore/*') from trimgalore_results.collect()
     file ('alignment/*') from alignment_logs.collect()
     file ('rseqc/rseqc_log.*') from rseqc_results.collect()
