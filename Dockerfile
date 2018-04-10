@@ -14,7 +14,8 @@ RUN dpkg -i irods-icommands-4.1.10-ubuntu14-x86_64.deb
 RUN wget ftp://ftp.renci.org/pub/irods/plugins/irods_auth_plugin_krb/1.4/irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb
 RUN dpkg -i irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb
 RUN DEFAULT_USER="ubuntu"
-RUN echo "INTERNAL.SANGER.AC.UK" | apt-get install -y --force-yes krb5-auth-dialog krb5-locales krb5-user
+ADD krb5.conf /etc/krb5.conf
+# RUN apt-get install -y --force-yes krb5-auth-dialog krb5-locales krb5-user
 RUN echo search internal.sanger.ac.uk >> /etc/resolv.conf
 RUN resolvconf -u
 
