@@ -1,15 +1,15 @@
 FROM continuumio/miniconda
 
 # Install iRods
-RUN apt-get update \
-    apt-get install -y wget \
-    wget ftp://ftp.renci.org/pub/irods/releases/4.1.10/ubuntu14/irods-icommands-4.1.10-ubuntu14-x86_64.deb \
-    dpkg -i irods-icommands-4.1.10-ubuntu14-x86_64.deb \
-    wget ftp://ftp.renci.org/pub/irods/plugins/irods_auth_plugin_krb/1.4/irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb \
-    dpkg -i irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb \
-    apt-get install -y krb5-auth-dialog krb5-locales krb5-user \
-    DEFAULT_USER="ubuntu" \
-    echo search internal.sanger.ac.uk >> /etc/resolv.conf \
+RUN apt-get update \\
+    apt-get install -y wget \\
+    wget ftp://ftp.renci.org/pub/irods/releases/4.1.10/ubuntu14/irods-icommands-4.1.10-ubuntu14-x86_64.deb \\
+    dpkg -i irods-icommands-4.1.10-ubuntu14-x86_64.deb \\
+    wget ftp://ftp.renci.org/pub/irods/plugins/irods_auth_plugin_krb/1.4/irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb \\
+    dpkg -i irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb \\
+    apt-get install -y krb5-auth-dialog krb5-locales krb5-user \\
+    DEFAULT_USER="ubuntu" \\
+    echo search internal.sanger.ac.uk >> /etc/resolv.conf \\
     resolvconf -u
 
 # Add iRods configuration file
