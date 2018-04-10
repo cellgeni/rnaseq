@@ -1,0 +1,11 @@
+{
+    "irods_cwd": "/Sanger1/home/vk6",
+    "irods_home": "/Sanger1/home/vk6",
+    "irods_host": "irods-sanger1.internal.sanger.ac.uk",
+    "irods_port": 1247,
+    "irods_ssl_ca_certificate_file": "/etc/irods/ca.pem",
+    "irods_user_name": "vk6",
+    "irods_zone_name": "Sanger1",
+    "irods_authentication_scheme":  "KRB",
+    "irods_plugins_home" : "/opt/renci/icommands/plugins/"
+}
