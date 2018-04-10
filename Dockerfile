@@ -17,27 +17,26 @@ RUN DEFAULT_USER="ubuntu"
 ADD krb5.conf /etc/krb5.conf
 # RUN apt-get install -y --force-yes krb5-auth-dialog krb5-locales krb5-user
 RUN echo search internal.sanger.ac.uk >> /etc/resolv.conf
-RUN resolvconf -u
 
 # Add iRods configuration file
 ADD .irods .
 
 # Install the pipeline software from the environment file
-ADD install .
-RUN conda env create -f install/rnaseq1.5.yml
+#ADD install .
+#RUN conda env create -f install/rnaseq1.5.yml
 
 # Install R
-RUN curl -fsSL https://cran.r-project.org/src/base/R-3/R-3.4.2.tar.gz -o /opt/R-3.4.2.tar.gz && \
-    tar xvzf /opt/R-3.4.2.tar.gz -C /opt/ && \
-    cd /opt/R-3.4.2 && \
-    ./configure && \
-    make && \
-    make install && \
-    rm /opt/R-3.4.2.tar.gz
+#RUN curl -fsSL https://cran.r-project.org/src/base/R-3/R-3.4.2.tar.gz -o /opt/R-3.4.2.tar.gz && \
+#    tar xvzf /opt/R-3.4.2.tar.gz -C /opt/ && \
+#    cd /opt/R-3.4.2 && \
+#    ./configure && \
+#    make && \
+#    make install && \
+#    rm /opt/R-3.4.2.tar.gz
 
 # Install R Packages v2
-RUN echo 'source("https://bioconductor.org/biocLite.R")' > /opt/packages.r && \
-    echo 'biocLite()' >> /opt/packages.r && \
-    echo 'biocLite(c("Rsubread", "dupRadar", "limma", "lattice", "locfit", "edgeR", "chron", "data.table", "gtools", "gdata", "bitops", "caTools", "gplots", "markdown"))' >> /opt/packages.r && \
-    Rscript /opt/packages.r && \
-    mkdir -p  /usr/local/lib/R/site-library
+#RUN echo 'source("https://bioconductor.org/biocLite.R")' > /opt/packages.r && \
+#    echo 'biocLite()' >> /opt/packages.r && \
+#    echo 'biocLite(c("Rsubread", "dupRadar", "limma", "lattice", "locfit", "edgeR", "chron", "data.table", "gtools", "gdata", "bitops", "caTools", "gplots", "markdown"))' >> /opt/packages.r && \
+#    Rscript /opt/packages.r && \
+#    mkdir -p  /usr/local/lib/R/site-library
