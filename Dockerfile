@@ -17,7 +17,7 @@ RUN DEFAULT_USER="ubuntu"
 RUN echo search internal.sanger.ac.uk >> /etc/resolv.conf
 
 # Add iRods configuration file
-ADD .irods .
+ADD .irods /.irods
 
 # Install the pipeline software from the environment file
 #ADD install .
