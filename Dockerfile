@@ -9,7 +9,7 @@ RUN apt-get update \
     dpkg -i irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb \
     apt-get install -y krb5-auth-dialog krb5-locales krb5-user \
     DEFAULT_USER="ubuntu" \
-    echo search internal.sanger.ac.uk >> /etc/resolvconf/resolv.conf.d/base \
+    echo search internal.sanger.ac.uk >> /etc/resolv.conf \
     resolvconf -u
 
 # Add iRods configuration file
