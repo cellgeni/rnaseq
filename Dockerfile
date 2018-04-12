@@ -14,10 +14,9 @@ RUN dpkg -i irods-icommands-4.1.10-ubuntu14-x86_64.deb
 RUN wget ftp://ftp.renci.org/pub/irods/plugins/irods_auth_plugin_krb/1.4/irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb
 RUN dpkg -i irods-auth-plugin-krb-1.4-ubuntu14-x86_64.deb
 RUN DEFAULT_USER="ubuntu"
-RUN echo search internal.sanger.ac.uk >> /etc/resolv.conf
 
 # Add iRods configuration file
-ADD .irods /.irods
+ADD .irods /root/.irods
 
 # Install the pipeline software from the environment file
 #ADD install .
