@@ -479,7 +479,7 @@ sample_list = Channel.fromPath('samples.txt')
 process irods {
     tag "${sample}"
     
-    beforeScript "kinit ${params.irods_username} -k -t ${params.irods_keytab}"
+    //beforeScript "kinit ${params.irods_username} -k -t ${params.irods_keytab}"
     input: 
         val sample from sample_list.flatMap{ it.readLines() }
     output: 
