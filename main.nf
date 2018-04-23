@@ -88,6 +88,7 @@ params.forward_stranded = false
 params.reverse_stranded = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
+params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
 params.star_overhang = '74'
 params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
@@ -146,8 +147,8 @@ if (params.pico){
 
 // Choose aligner
 params.aligner = 'star'
-if (params.aligner != 'star' && params.aligner != 'hisat2'){
-    exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2'"
+if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 'salmon'){
+    exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
 }
 
 // Validate inputs
@@ -160,6 +161,11 @@ else if ( params.hisat2_index && params.aligner == 'hisat2' ){
     hs2_indices = Channel
         .fromPath("${params.hisat2_index}*")
         .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
+}
+else if ( params.hisat2_index && params.aligner == 'salmon' ){
+    hs2_indices = Channel
+        .fromPath("${params.salmon_index}*")
+        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
 }
 else if ( params.fasta ){
     fasta = file(params.fasta)
@@ -191,9 +197,6 @@ if( params.aligner == 'hisat2' && params.splicesites ){
         .ifEmpty { exit 1, "HISAT2 splice sites file not found: $alignment_splicesites" }
         .into { indexing_splicesites; alignment_splicesites }
 }
-if( workflow.profile == 'uppmax' || workflow.profile == 'uppmax-modules' || workflow.profile == 'uppmax-devel' ){
-    if ( !params.project ) exit 1, "No UPPMAX project ID found! Use --project"
-}
 
 // Has the run name been specified by the user?
 //  this has the bonus effect of catching both -name and --name
@@ -223,7 +226,14 @@ if(params.aligner == 'star'){
     if(params.star_index)          summary['STAR Index']   = params.star_index
     else if(params.fasta)          summary['Fasta Ref']    = params.fasta
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
-} else if(params.aligner == 'hisat2') {
+}
+if(params.aligner == 'salmon'){
+    summary['Aligner'] = "Salmon"
+    if(params.salmon_index)          summary['Salmon Index']   = params.star_index
+    else if(params.fasta)          summary['Fasta Ref']    = params.fasta
+    else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
+} 
+if(params.aligner == 'hisat2') {
     summary['Aligner'] = "HISAT2"
     if(params.hisat2_index)        summary['HISAT2 Index'] = params.hisat2_index
     else if(params.download_hisat2index) summary['HISAT2 Index'] = params.download_hisat2index
@@ -270,24 +280,11 @@ try {
               "============================================================"
 }
 
-// Show a big error message if we're running on the base config and an uppmax cluster
-if( workflow.profile == 'standard'){
-    if ( "hostname".execute().text.contains('.uppmax.uu.se') ) {
-        log.error "====================================================\n" +
-                  "  WARNING! You are running with the default 'standard'\n" +
-                  "  pipeline config profile, which runs on the head node\n" +
-                  "  and assumes all software is on the PATH.\n" +
-                  "  ALL JOBS ARE RUNNING LOCALLY and stuff will probably break.\n" +
-                  "  Please use `-profile uppmax` to run on UPPMAX clusters.\n" +
-                  "============================================================"
-    }
-}
-
 
 /*
  * PREPROCESSING - Download Fasta
  */
-if(((params.aligner == 'star' && !params.star_index) || (params.aligner == 'hisat2' && !params.hisat2_index)) && !params.fasta && params.download_fasta){
+if(((params.aligner == 'star' && !params.star_index) || (params.aligner == 'hisat2' && !params.hisat2_index) || (params.aligner == 'salmon' && !params.salmon_index)) && !params.fasta && params.download_fasta){
     process downloadFASTA {
         tag "${params.download_fasta}"
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -385,6 +382,32 @@ if(params.aligner == 'star' && !params.star_index && fasta){
         """
     }
 }
+
+/*
+ * PREPROCESSING - Build Salmon index
+ */
+if(params.aligner == 'salmon' && !params.salmon_index && fasta){
+    process makeSalmonIndex {
+        tag fasta
+        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
+                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+
+        beforeScript "set +u; source activate rnaseq${version}"
+        afterScript "set +u; source deactivate"
+
+        input:
+        file fasta from fasta
+
+        output:
+        file "salmon" into salmon_index
+
+        script:
+        """
+        salmon index -t $fasta
+        """
+    }
+}
+
 /*
  * PREPROCESSING - Build HISAT2 splice sites file
  */
@@ -555,32 +578,6 @@ process cram2fastq {
 }
 
 /*
- * STEP 1 - FastQC
- */
-process fastqc {
-    tag "${cram.baseName}"
-    publishDir "${params.outdir}/fastqc", mode: 'copy',
-        saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
-
-    beforeScript "set +u; source /nfs/cellgeni/.cellgenirc"
-    // beforeScript "set +u; source activate rnaseq${version}"
-    // afterScript "set +u; source deactivate"
-
-    input:
-    set val(cram), file(reads) from fastq_fastqc
-
-    output:
-    file "*_fastqc.{zip,html}" into fastqc_results
-    file '.command.out' into fastqc_stdout
-
-    script:
-    """
-    fastqc -q $reads
-    fastqc --version
-    """
-}
-
-/*
  * STEP 2 - Trim Galore!
  */
 process trim_galore {
@@ -640,6 +637,7 @@ def check_log(logs) {
 }
 if(params.aligner == 'star'){
     hisat_stdout = Channel.from(false)
+    salmon_stdout = Channel.from(false)
     process star {
         tag "$prefix"
         publishDir "${params.outdir}/STAR", mode: 'copy',
@@ -684,12 +682,57 @@ if(params.aligner == 'star'){
     .into { bam_count; bam_rseqc; bam_preseq; bam_markduplicates; bam_featurecounts; bam_stringtieFPKM; bam_geneBodyCoverage }
 }
 
+if(params.aligner == 'salmon'){
+    hisat_stdout = Channel.from(false)
+    star_log = Channel.from(false)
+    process salmon {
+        tag "$prefix"
+        publishDir "${params.outdir}/Salmon", mode: 'copy'
+
+        beforeScript "set +u; source activate rnaseq${version}"
+        afterScript "set +u; source deactivate"
+
+        input:
+        file reads from trimmed_reads
+        file index from salmon_index.collect()
+
+        output:
+        set file("*Log.final.out"), file ('*.bam') into star_aligned
+        file "*.out" into alignment_logs
+        file "*SJ.out.tab"
+        file "*Log.out" into star_log
+
+        script:
+        """
+        $salmon quant \
+            -i $index \
+            -l ISR \
+            -p 8 \
+            --seqBias \
+            --gcBias \
+            --posBias \
+            -q \
+            -o . \
+            -1 ${reads[0]} \
+            -2 ${reads[1]} \
+            -g $salmon_mart \
+            --useVBOpt \
+            --numBootstraps 100
+        """
+    }
+    // Filter removes all 'aligned' channels that fail the check
+    star_aligned
+        .filter { logs, bams -> check_log(logs) }
+        .flatMap {  logs, bams -> bams }
+    .into { bam_count; bam_rseqc; bam_preseq; bam_markduplicates; bam_featurecounts; bam_stringtieFPKM; bam_geneBodyCoverage }
+}
 
 /*
  * STEP 3 - align with HISAT2
  */
 if(params.aligner == 'hisat2'){
     star_log = Channel.from(false)
+    salmon_stdout = Channel.from(false)
     process hisat2Align {
         tag "$prefix"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
@@ -761,200 +804,6 @@ if(params.aligner == 'hisat2'){
         """
     }
 }
-/*
- * STEP 4 - RSeQC analysis
- */
-process rseqc {
-    tag "${bam_rseqc.baseName - '.sorted'}"
-    publishDir "${params.outdir}/rseqc" , mode: 'copy',
-        saveAs: {filename ->
-                 if (filename.indexOf("bam_stat.txt") > 0)                      "bam_stat/$filename"
-            else if (filename.indexOf("infer_experiment.txt") > 0)              "infer_experiment/$filename"
-            else if (filename.indexOf("read_distribution.txt") > 0)             "read_distribution/$filename"
-            else if (filename.indexOf("read_duplication.DupRate_plot.pdf") > 0) "read_duplication/$filename"
-            else if (filename.indexOf("read_duplication.DupRate_plot.r") > 0)   "read_duplication/rscripts/$filename"
-            else if (filename.indexOf("read_duplication.pos.DupRate.xls") > 0)  "read_duplication/dup_pos/$filename"
-            else if (filename.indexOf("read_duplication.seq.DupRate.xls") > 0)  "read_duplication/dup_seq/$filename"
-            else if (filename.indexOf("RPKM_saturation.eRPKM.xls") > 0)         "RPKM_saturation/rpkm/$filename"
-            else if (filename.indexOf("RPKM_saturation.rawCount.xls") > 0)      "RPKM_saturation/counts/$filename"
-            else if (filename.indexOf("RPKM_saturation.saturation.pdf") > 0)    "RPKM_saturation/$filename"
-            else if (filename.indexOf("RPKM_saturation.saturation.r") > 0)      "RPKM_saturation/rscripts/$filename"
-            else if (filename.indexOf("inner_distance.txt") > 0)                "inner_distance/$filename"
-            else if (filename.indexOf("inner_distance_freq.txt") > 0)           "inner_distance/data/$filename"
-            else if (filename.indexOf("inner_distance_plot.r") > 0)             "inner_distance/rscripts/$filename"
-            else if (filename.indexOf("inner_distance_plot.pdf") > 0)           "inner_distance/plots/$filename"
-            else if (filename.indexOf("junction_plot.r") > 0)                   "junction_annotation/rscripts/$filename"
-            else if (filename.indexOf("junction.xls") > 0)                      "junction_annotation/data/$filename"
-            else if (filename.indexOf("splice_events.pdf") > 0)                 "junction_annotation/events/$filename"
-            else if (filename.indexOf("splice_junction.pdf") > 0)               "junction_annotation/junctions/$filename"
-            else if (filename.indexOf("junctionSaturation_plot.pdf") > 0)       "junction_saturation/$filename"
-            else if (filename.indexOf("junctionSaturation_plot.r") > 0)         "junction_saturation/rscripts/$filename"
-            else if (filename.indexOf("log.txt") > -1) false
-            else "$filename"
-        }
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_rseqc
-    file bed12 from bed_rseqc.collect()
-
-    output:
-    file "*.{txt,pdf,r,xls}" into rseqc_results
-
-    script:
-    def strandRule = ''
-    if (forward_stranded && !unstranded){
-        strandRule = '-d 1++,1--,2+-,2-+'
-    } else if (reverse_stranded && !unstranded){
-        strandRule = '-d 1+-,1-+,2++,2--'
-    }
-    """
-    samtools index $bam_rseqc
-    infer_experiment.py -i $bam_rseqc -r $bed12 > ${bam_rseqc.baseName}.infer_experiment.txt
-    junction_annotation.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12
-    bam_stat.py -i $bam_rseqc 2> ${bam_rseqc.baseName}.bam_stat.txt
-    junction_saturation.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12 2> ${bam_rseqc.baseName}.junction_annotation_log.txt
-    inner_distance.py -i $bam_rseqc -o ${bam_rseqc.baseName}.rseqc -r $bed12
-    read_distribution.py -i $bam_rseqc -r $bed12 > ${bam_rseqc.baseName}.read_distribution.txt
-    read_duplication.py -i $bam_rseqc -o ${bam_rseqc.baseName}.read_duplication
-    echo "Filename $bam_rseqc RseQC version: "\$(read_duplication.py --version)
-    """
-}
-
-/*
- * Step 4.1 Rseqc genebody_coverage
- */
-process genebody_coverage {
-    tag "${bam_geneBodyCoverage.baseName - '.sorted'}"
-       publishDir "${params.outdir}/rseqc" , mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("geneBodyCoverage.curves.pdf") > 0)       "geneBodyCoverage/$filename"
-            else if (filename.indexOf("geneBodyCoverage.r") > 0)                "geneBodyCoverage/rscripts/$filename"
-            else if (filename.indexOf("geneBodyCoverage.txt") > 0)              "geneBodyCoverage/data/$filename"
-            else "$filename"
-        }
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_geneBodyCoverage
-    file bed12 from bed_genebody_coverage.collect()
-
-    output:
-    file "*.{txt,pdf,r,xls}" into genebody_coverage_results
-
-    script:
-    """
-    cat <(samtools view -H ${bam_geneBodyCoverage}) \\
-        <(samtools view ${bam_geneBodyCoverage} | shuf -n 1000000) \\
-        | samtools sort - -o ${bam_geneBodyCoverage.baseName}_subsamp_sorted.bam
-    samtools index ${bam_geneBodyCoverage.baseName}_subsamp_sorted.bam
-    geneBody_coverage.py -i ${bam_geneBodyCoverage.baseName}_subsamp_sorted.bam -o ${bam_geneBodyCoverage.baseName}.rseqc -r $bed12
-    """
-}
-
-/*
- * STEP 5 - preseq analysis
- */
-process preseq {
-    tag "${bam_preseq.baseName - '.sorted'}"
-    publishDir "${params.outdir}/preseq", mode: 'copy'
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_preseq
-
-    output:
-    file "${bam_preseq.baseName}.ccurve.txt" into preseq_results
-    file '.command.log' into preseq_stdout
-
-    script:
-    """
-    preseq lc_extrap -v -B $bam_preseq -o ${bam_preseq.baseName}.ccurve.txt
-    echo "File name: $bam_preseq  preseq version: "\$(preseq)
-    """
-}
-
-
-/*
- * STEP 6 Mark duplicates
- */
-process markDuplicates {
-    tag "${bam_markduplicates.baseName - '.sorted'}"
-    publishDir "${params.outdir}/markDuplicates", mode: 'copy',
-        saveAs: {filename -> filename.indexOf("_metrics.txt") > 0 ? "metrics/$filename" : "$filename"}
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_markduplicates
-
-    output:
-    file "${bam_markduplicates.baseName}.markDups.bam" into bam_md
-    file "${bam_markduplicates.baseName}.markDups_metrics.txt" into picard_results
-    file "${bam_markduplicates.baseName}.bam.bai"
-    file '.command.log' into markDuplicates_stdout
-
-    script:
-    if( task.memory == null ){
-        log.info "[Picard MarkDuplicates] Available memory not known - defaulting to 3GB. Specify process memory requirements to change this."
-        avail_mem = 3
-    } else {
-        avail_mem = task.memory.toGiga()
-    }
-    """
-    picard -Xmx${avail_mem}g MarkDuplicates \\
-        INPUT=$bam_markduplicates \\
-        OUTPUT=${bam_markduplicates.baseName}.markDups.bam \\
-        METRICS_FILE=${bam_markduplicates.baseName}.markDups_metrics.txt \\
-        REMOVE_DUPLICATES=false \\
-        ASSUME_SORTED=true \\
-        PROGRAM_RECORD_ID='null' \\
-        VALIDATION_STRINGENCY=LENIENT
-
-    # Print version number to standard out
-    echo "File name: $bam_markduplicates Picard version "\$(picard -Xmx2g MarkDuplicates --version 2>&1)
-    samtools index $bam_markduplicates
-    """
-}
-
-
-/*
- * STEP 7 - dupRadar
- */
-process dupradar {
-    tag "${bam_md.baseName - '.sorted.markDups'}"
-    publishDir "${params.outdir}/dupradar", mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("_duprateExpDens.pdf") > 0) "scatter_plots/$filename"
-            else if (filename.indexOf("_duprateExpBoxplot.pdf") > 0) "box_plots/$filename"
-            else if (filename.indexOf("_expressionHist.pdf") > 0) "histograms/$filename"
-            else if (filename.indexOf("_dupMatrix.txt") > 0) "gene_data/$filename"
-            else if (filename.indexOf("_duprateExpDensCurve.txt") > 0) "scatter_curve_data/$filename"
-            else if (filename.indexOf("_intercept_slope.txt") > 0) "intercepts_slopes/$filename"
-            else "$filename"
-        }
-
-    input:
-    file bam_md
-    file gtf from gtf_dupradar.collect()
-
-    output:
-    file "*.{pdf,txt}" into dupradar_results
-    file '.command.log' into dupradar_stdout
-
-    script:
-    """
-    dupRadar.r $bam_md $gtf 'TRUE'
-    """
-}
-
 
 /*
  * STEP 8 Feature counts
@@ -1022,52 +871,6 @@ process merge_featureCounts {
 }
 
 
-/*
- * STEP 10 - stringtie FPKM
- */
-process stringtieFPKM {
-    tag "${bam_stringtieFPKM.baseName - '.sorted'}"
-    publishDir "${params.outdir}/stringtieFPKM", mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("transcripts.gtf") > 0) "transcripts/$filename"
-            else if (filename.indexOf("cov_refs.gtf") > 0) "cov_refs/$filename"
-            else "$filename"
-        }
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_stringtieFPKM
-    file gtf from gtf_stringtieFPKM.collect()
-
-    output:
-    file "${bam_stringtieFPKM.baseName}_transcripts.gtf"
-    file "${bam_stringtieFPKM.baseName}.gene_abund.txt"
-    file "${bam_stringtieFPKM}.cov_refs.gtf"
-    file ".command.log" into stringtie_log, stringtie_stdout
-
-    script:
-    def st_direction = ''
-    if (forward_stranded && !unstranded){
-        st_direction = "--fr"
-    } else if (reverse_stranded && !unstranded){
-        st_direction = "--rf"
-    }
-    """
-    stringtie $bam_stringtieFPKM \\
-        $st_direction \\
-        -o ${bam_stringtieFPKM.baseName}_transcripts.gtf \\
-        -v \\
-        -G $gtf \\
-        -A ${bam_stringtieFPKM.baseName}.gene_abund.txt \\
-        -C ${bam_stringtieFPKM}.cov_refs.gtf \\
-        -e \\
-        -b ${bam_stringtieFPKM.baseName}_ballgown
-
-    echo "File name: $bam_stringtieFPKM Stringtie version "\$(stringtie --version)
-    """
-}
 def num_bams
 bam_count.count().subscribe{ num_bams = it }
 
@@ -1151,67 +954,4 @@ process get_software_versions {
 ${software_versions.collect{ k,v -> "            <dt>$k</dt><dd>${v ?: '<span style=\"color:#999999;\">N/A</a>'}</dd>" }.join("\n")}
         </dl>
     """.stripIndent()
-}
-
-/*
- * STEP 12 MultiQC
- */
-process multiqc {
-    tag "$prefix"
-    publishDir "${params.outdir}/MultiQC", mode: 'copy'
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file multiqc_config
-    file (fastqc:'fastqc/*') from fastqc_results.collect()
-    file ('trimgalore/*') from trimgalore_results.collect()
-    file ('alignment/*') from alignment_logs.collect()
-    file ('rseqc/rseqc_log.*') from rseqc_results.collect()
-    file ('rseqc/genebody_*') from genebody_coverage_results.collect()
-    file ('preseq/*') from preseq_results.collect()
-    file ('dupradar/*') from dupradar_results.collect()
-    file ('featureCounts/*') from featureCounts_logs.collect()
-    file ('featureCounts_biotype/*') from featureCounts_biotype.collect()
-    file ('stringtie/stringtie_log*') from stringtie_log.collect()
-    file ('sample_correlation_results/*') from sample_correlation_results.collect()
-    file ('software_versions/*') from software_versions_yaml
-
-    output:
-    file "*multiqc_report.html" into multiqc_report
-    file "*_data"
-    file '.command.err' into multiqc_stderr
-    val prefix into multiqc_prefix
-
-    script:
-    prefix = fastqc[0].toString() - '_fastqc.html' - 'fastqc/'
-    rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
-    rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
-    """
-    multiqc -f $rtitle $rfilename --config $multiqc_config .
-    """
-}
-multiqc_stderr.subscribe { stderr ->
-  software_versions['MultiQC'] = stderr.getText().find(/This is MultiQC v(\S+)/) { match, version -> "v$version" }
-}
-
-/*
- * STEP 13 - Output Description HTML
- */
-process output_documentation {
-    tag "$prefix"
-    publishDir "${params.outdir}/Documentation", mode: 'copy'
-
-    input:
-    file output_docs
-    val prefix from multiqc_prefix
-
-    output:
-    file "results_description.html"
-
-    script:
-    """
-    markdown_to_html.r $output_docs results_description.html
-    """
 }
