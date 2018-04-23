@@ -293,8 +293,8 @@ if(params.aligner == 'star' && !params.star_index && params.fasta){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from fromPath("*.fa")
-        file gtf from fromPath("*.gtf")
+        file fasta from Channel.fromPath(params.fasta + '/*.fa')
+        file gtf from Channel.fromPath(params.fasta + '/*.gtf')
 
         output:
         file "star" into star_index
@@ -317,6 +317,7 @@ if(params.aligner == 'star' && !params.star_index && params.fasta){
  * PREPROCESSING - Build Salmon index
  */
 if(params.aligner == 'salmon' && !params.salmon_index && fasta){
+
     process makeSalmonIndex {
         tag fasta
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -326,7 +327,7 @@ if(params.aligner == 'salmon' && !params.salmon_index && fasta){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from fromPath("*.fa")
+        file fasta from Channel.fromPath(params.fasta + '/*.fa')
 
         output:
         file "salmon" into salmon_index
