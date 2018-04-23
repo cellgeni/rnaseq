@@ -280,80 +280,10 @@ try {
               "============================================================"
 }
 
-
-/*
- * PREPROCESSING - Download Fasta
- */
-if(((params.aligner == 'star' && !params.star_index) || (params.aligner == 'hisat2' && !params.hisat2_index) || (params.aligner == 'salmon' && !params.salmon_index)) && !params.fasta && params.download_fasta){
-    process downloadFASTA {
-        tag "${params.download_fasta}"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        output:
-        file "*.{fa,fasta}" into fasta
-
-        script:
-        """
-        curl -O -L ${params.download_fasta}
-        if [ -f *.tar.gz ]; then
-            tar xzf *.tar.gz
-        elif [ -f *.gz ]; then
-            gzip -d *.gz
-        fi
-        """
-    }
-}
-/*
- * PREPROCESSING - Download GTF
- */
-if(!params.gtf && params.download_gtf){
-    process downloadGTF {
-        tag "${params.download_gtf}"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        output:
-        file "*.gtf" into gtf_makeSTARindex, gtf_makeHisatSplicesites, gtf_makeHISATindex, gtf_makeBED12, gtf_star, gtf_dupradar, gtf_featureCounts, gtf_stringtieFPKM
-
-        script:
-        """
-        curl -O -L ${params.download_gtf}
-        if [ -f *.tar.gz ]; then
-            tar xzf *.tar.gz
-        elif [ -f *.gz ]; then
-            gzip -d *.gz
-        fi
-        """
-    }
-}
-/*
- * PREPROCESSING - Download HISAT2 Index
- */
- if( params.aligner == 'hisat2' && params.download_hisat2index && !params.hisat2_index){
-    process downloadHS2Index {
-        tag "${params.download_hisat2index}"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        output:
-        file "*/*.ht2" into hs2_indices
-
-        script:
-        """
-        curl -O -L ${params.download_hisat2index}
-        if [ -f *.tar.gz ]; then
-            tar xzf *.tar.gz
-        elif [ -f *.gz ]; then
-            gzip -d *.gz
-        fi
-        """
-    }
-}
 /*
  * PREPROCESSING - Build STAR index
  */
-if(params.aligner == 'star' && !params.star_index && fasta){
+if(params.aligner == 'star' && !params.star_index && params.fasta){
     process makeSTARindex {
         tag fasta
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -363,8 +293,8 @@ if(params.aligner == 'star' && !params.star_index && fasta){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from fasta
-        file gtf from gtf_makeSTARindex
+        file fasta from fromPath("*.fa")
+        file gtf from fromPath("*.gtf")
 
         output:
         file "star" into star_index
@@ -396,7 +326,7 @@ if(params.aligner == 'salmon' && !params.salmon_index && fasta){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from fasta
+        file fasta from fromPath("*.fa")
 
         output:
         file "salmon" into salmon_index
