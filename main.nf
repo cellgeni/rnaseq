@@ -317,6 +317,7 @@ if(params.aligner == 'star' && !params.star_index){
  */
 if(params.aligner == 'salmon' && !params.salmon_index){
 
+    log.info "Test!"
     ch = Channel.fromPath(params.fasta + '/*.fa')
 
     process makeSalmonIndex {
