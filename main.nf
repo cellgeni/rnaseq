@@ -317,6 +317,8 @@ if(params.aligner == 'star' && !params.star_index){
  */
 if(params.aligner == 'salmon' && !params.salmon_index){
 
+    ch = Channel.fromPath(params.fasta + '/*.fa')
+
     process makeSalmonIndex {
         tag fasta
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -326,7 +328,7 @@ if(params.aligner == 'salmon' && !params.salmon_index){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from Channel.fromPath(params.fasta + '/*.fa')
+        file fasta from ch
 
         output:
         file "salmon" into salmon_index
