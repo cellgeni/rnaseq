@@ -79,8 +79,6 @@ if (params.help){
 }
 
 // Configurable variables
-params.irods_username = 'vk6'
-params.irods_keytab = '~/irods.keytab'
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -157,21 +155,21 @@ if( params.star_index && params.aligner == 'star' ){
         .fromPath(params.star_index)
         .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
 }
-else if ( params.hisat2_index && params.aligner == 'hisat2' ){
+if ( params.hisat2_index && params.aligner == 'hisat2' ){
     hs2_indices = Channel
         .fromPath("${params.hisat2_index}*")
         .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
 }
-else if ( params.salmon_index && params.aligner == 'salmon' ){
+if ( params.salmon_index && params.aligner == 'salmon' ){
     salmon_index = Channel
         .fromPath("${params.salmon_index}*")
         .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
 }
-else if ( params.fasta ){
+if ( params.fasta ){
     fasta = file(params.fasta)
     if( !fasta.exists() ) exit 1, "Fasta file not found: ${params.fasta}"
 }
-else if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
+if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
     exit 1, "No reference genome specified!"
 }
 
@@ -229,6 +227,7 @@ if(params.aligner == 'star'){
 }
 if(params.aligner == 'salmon'){
     summary['Aligner'] = "Salmon"
+    summary['Salmon Index']   = params.salmon_index
     if(params.salmon_index)          summary['Salmon Index']   = params.salmon_index
     else if(params.fasta)          summary['Fasta Ref']    = params.fasta
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
