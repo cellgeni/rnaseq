@@ -319,7 +319,7 @@ if(params.aligner == 'salmon' && !params.salmon_index){
 
     log.info "Test!"
     
-    ch = Channel.fromPath(params.fasta + '/*.fa')
+    ch = Channel.fromPath(params.fasta)
 
     process makeSalmonIndex {
         tag "$fasta"
