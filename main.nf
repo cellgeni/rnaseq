@@ -631,7 +631,7 @@ if(params.aligner == 'salmon'){
         set file("*Log.final.out"), file ('*.bam') into star_aligned
         file "*.out" into alignment_logs
         file "*SJ.out.tab"
-        file "*Log.out" into star_log
+        file "*Log.out" into salmon_stdout
 
         script:
         """
