@@ -316,7 +316,7 @@ if(params.aligner == 'star' && !params.star_index && params.fasta){
 /*
  * PREPROCESSING - Build Salmon index
  */
-if(params.aligner == 'salmon' && !params.salmon_index && fasta){
+if(params.aligner == 'salmon' && !params.salmon_index && params.fasta){
 
     process makeSalmonIndex {
         tag fasta
@@ -334,7 +334,10 @@ if(params.aligner == 'salmon' && !params.salmon_index && fasta){
 
         script:
         """
-        salmon index -t $fasta
+        mkdir salmon
+        salmon index \
+            -t $fasta \
+            -i salmon
         """
     }
 }
