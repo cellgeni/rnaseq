@@ -319,12 +319,10 @@ if(params.aligner == 'salmon' && !params.salmon_index){
 
     log.info "Test!"
     
-    Channel
-        .fromPath(params.fasta + '/*.fa')
-        .into { ch }
+    ch = Channel.fromPath(params.fasta + '/*.fa')
 
     process makeSalmonIndex {
-        tag fasta
+        tag "$fasta"
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
