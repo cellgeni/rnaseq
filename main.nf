@@ -88,7 +88,8 @@ params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
 params.star_overhang = '74'
-params.fasta = params.genome ? params.genomes[ params.genome ].fasta ?: false : false
+params.dna = params.genome ? params.genomes[ params.genome ].dna ?: false : false
+params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
@@ -165,9 +166,13 @@ if ( params.salmon_index && params.aligner == 'salmon' ){
         .fromPath("${params.salmon_index}*")
         .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
 }
-if ( params.fasta ){
-    fasta = file(params.fasta)
-    if( !fasta.exists() ) exit 1, "Fasta file not found: ${params.fasta}"
+if ( params.dna ){
+    f = file(params.dna)
+    if( !f.exists() ) exit 1, "Fasta file not found: ${params.dna}"
+}
+if ( params.cdna ){
+    f = file(params.cdna)
+    if( !f.exists() ) exit 1, "Fasta file not found: ${params.cdna}"
 }
 if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
     exit 1, "No reference genome specified!"
@@ -222,21 +227,21 @@ summary["Trim 3' R2"] = three_prime_clip_r2
 if(params.aligner == 'star'){
     summary['Aligner'] = "STAR"
     if(params.star_index)          summary['STAR Index']   = params.star_index
-    else if(params.fasta)          summary['Fasta Ref']    = params.fasta
+    else if(params.dna)          summary['Fasta Ref']    = params.dna
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
 }
 if(params.aligner == 'salmon'){
     summary['Aligner'] = "Salmon"
     summary['Salmon Index']   = params.salmon_index
     if(params.salmon_index)          summary['Salmon Index']   = params.salmon_index
-    else if(params.fasta)          summary['Fasta Ref']    = params.fasta
+    else if(params.dna)          summary['Fasta Ref']    = params.dna
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
 } 
 if(params.aligner == 'hisat2') {
     summary['Aligner'] = "HISAT2"
     if(params.hisat2_index)        summary['HISAT2 Index'] = params.hisat2_index
     else if(params.download_hisat2index) summary['HISAT2 Index'] = params.download_hisat2index
-    else if(params.fasta)          summary['Fasta Ref']    = params.fasta
+    else if(params.dna)          summary['Fasta Ref']    = params.dna
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
     if(params.splicesites)         summary['Splice Sites'] = params.splicesites
 }
@@ -292,8 +297,8 @@ if(params.aligner == 'star' && !params.star_index){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from Channel.fromPath(params.fasta + '/*.fa')
-        file gtf from Channel.fromPath(params.fasta + '/*.gtf')
+        file fasta from Channel.fromPath(params.dna)
+        file gtf from Channel.fromPath(params.dna)
 
         output:
         file "star" into star_index
@@ -316,11 +321,6 @@ if(params.aligner == 'star' && !params.star_index){
  * PREPROCESSING - Build Salmon index
  */
 if(params.aligner == 'salmon' && !params.salmon_index){
-
-    log.info "Test!"
-    
-    ch = Channel.fromPath(params.fasta)
-
     process makeSalmonIndex {
         tag "$fasta"
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -330,7 +330,7 @@ if(params.aligner == 'salmon' && !params.salmon_index){
         afterScript "set +u; source deactivate"
 
         input:
-        file fasta from ch
+        file fasta from Channel.fromPath(params.cdna)
 
         output:
         file "salmon" into salmon_index
