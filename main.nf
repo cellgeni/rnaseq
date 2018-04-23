@@ -162,8 +162,8 @@ else if ( params.hisat2_index && params.aligner == 'hisat2' ){
         .fromPath("${params.hisat2_index}*")
         .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
 }
-else if ( params.hisat2_index && params.aligner == 'salmon' ){
-    hs2_indices = Channel
+else if ( params.salmon_index && params.aligner == 'salmon' ){
+    salmon_index = Channel
         .fromPath("${params.salmon_index}*")
         .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
 }
@@ -229,7 +229,7 @@ if(params.aligner == 'star'){
 }
 if(params.aligner == 'salmon'){
     summary['Aligner'] = "Salmon"
-    if(params.salmon_index)          summary['Salmon Index']   = params.star_index
+    if(params.salmon_index)          summary['Salmon Index']   = params.salmon_index
     else if(params.fasta)          summary['Fasta Ref']    = params.fasta
     else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
 } 
