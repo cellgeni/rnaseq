@@ -283,7 +283,7 @@ try {
 /*
  * PREPROCESSING - Build STAR index
  */
-if(params.aligner == 'star' && !params.star_index && params.fasta){
+if(params.aligner == 'star' && !params.star_index && !fasta.exists()){
     process makeSTARindex {
         tag fasta
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
@@ -316,7 +316,7 @@ if(params.aligner == 'star' && !params.star_index && params.fasta){
 /*
  * PREPROCESSING - Build Salmon index
  */
-if(params.aligner == 'salmon' && !params.salmon_index && params.fasta){
+if(params.aligner == 'salmon' && !params.salmon_index && !fasta.exists()){
 
     process makeSalmonIndex {
         tag fasta
