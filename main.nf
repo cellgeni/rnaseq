@@ -516,7 +516,7 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set val(cram), file("*.fastq") optional true into fastqs
+    file "*.fastq" optional true into fastqs
 
     script:
     // samtools consumes more than what's available
