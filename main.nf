@@ -659,7 +659,7 @@ if(params.aligner == 'salmon'){
         input:
         file reads from trimmed_reads
         file index from salmon_index.collect()
-        file trans_gene from salmon_trans_gene
+        file trans_gene from salmon_trans_gene.collect()
 
         output:
         file "${prefix}.quant.sf" into salmon_trans
