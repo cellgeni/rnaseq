@@ -620,6 +620,7 @@ if(params.aligner == 'star'){
 }
 
 if(params.aligner == 'salmon'){
+    log.info "Test!"
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
@@ -740,68 +741,71 @@ if(params.aligner == 'hisat2'){
 /*
  * STEP 8 Feature counts
  */
-process featureCounts {
-    tag "${bam_featurecounts.baseName - '.sorted'}"
-    publishDir "${params.outdir}/featureCounts", mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("_biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
-            else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-            else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
-            else "$filename"
+
+if(params.aligner != 'salmon'){
+    process featureCounts {
+        tag "${bam_featurecounts.baseName - '.sorted'}"
+        publishDir "${params.outdir}/featureCounts", mode: 'copy',
+            saveAs: {filename ->
+                if (filename.indexOf("_biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
+                else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+                else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+                else "$filename"
+            }
+
+        beforeScript "set +u; source activate rnaseq${version}"
+        afterScript "set +u; source deactivate"
+
+        input:
+        file bam_featurecounts
+        file gtf from gtf_featureCounts.collect()
+        file biotypes_header
+
+        output:
+        file "${bam_featurecounts.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
+        file "${bam_featurecounts.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
+        file "${bam_featurecounts.baseName}_biotype_counts_mqc.txt" into featureCounts_biotype
+        file '.command.log' into featurecounts_stdout
+
+        script:
+        def featureCounts_direction = 0
+        if (forward_stranded && !unstranded) {
+            featureCounts_direction = 1
+        } else if (reverse_stranded && !unstranded){
+            featureCounts_direction = 2
         }
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    file bam_featurecounts
-    file gtf from gtf_featureCounts.collect()
-    file biotypes_header
-
-    output:
-    file "${bam_featurecounts.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-    file "${bam_featurecounts.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
-    file "${bam_featurecounts.baseName}_biotype_counts_mqc.txt" into featureCounts_biotype
-    file '.command.log' into featurecounts_stdout
-
-    script:
-    def featureCounts_direction = 0
-    if (forward_stranded && !unstranded) {
-        featureCounts_direction = 1
-    } else if (reverse_stranded && !unstranded){
-        featureCounts_direction = 2
+        """
+        featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
+        cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
+        """
     }
-    """
-    featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-    featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-    cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
-    cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
-    """
 }
-
 
 /*
  * STEP 9 - Merge featurecounts
  */
-process merge_featureCounts {
-    tag "${input_files[0].baseName - '.sorted'}"
-    publishDir "${params.outdir}/featureCounts", mode: 'copy'
+if(params.aligner != 'salmon'){
+    process merge_featureCounts {
+        tag "${input_files[0].baseName - '.sorted'}"
+        publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
+        beforeScript "set +u; source activate rnaseq${version}"
+        afterScript "set +u; source deactivate"
 
-    input:
-    file input_files from featureCounts_to_merge.collect()
+        input:
+        file input_files from featureCounts_to_merge.collect()
 
-    output:
-    file 'merged_gene_counts.txt'
+        output:
+        file 'merged_gene_counts.txt'
 
-    script:
-    """
-    merge_featurecounts.py -o merged_gene_counts.txt -i $input_files
-    """
+        script:
+        """
+        merge_featurecounts.py -o merged_gene_counts.txt -i $input_files
+        """
+    }
 }
-
 
 def num_bams
 bam_count.count().subscribe{ num_bams = it }
