@@ -364,9 +364,9 @@ if(params.aligner == 'salmon' && !params.salmon_index){
         script:
         """
         grep '>' $fasta \\
-        | awk '{ print $1, $4 }' \\
-        | sed 's\/>\/\/' \\
-        | sed 's\/gene:\/\/' \\
+        | awk '{ print \$1, \$4 }' \\
+        | sed 's/>//' \\
+        | sed 's/gene://' \\
             > trans_gene.txt
         """
     }
