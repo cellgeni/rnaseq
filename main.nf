@@ -87,7 +87,7 @@ params.reverse_stranded = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
-params.salmon_mart = params.genome ? params.genomes[ params.genome ].mart ?: false : false
+params.salmon_trans_gene = params.genome ? params.genomes[ params.genome ].salmon_trans_gene ?: false : false
 params.star_overhang = '74'
 params.dna = params.genome ? params.genomes[ params.genome ].dna ?: false : false
 params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : false
@@ -166,6 +166,11 @@ if ( params.salmon_index && params.aligner == 'salmon' ){
     salmon_index = Channel
         .fromPath(params.salmon_index)
         .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
+}
+if ( params.salmon_trans_gene && params.aligner == 'salmon' ){
+    salmon_trans_gene = Channel
+        .fromPath(params.salmon_trans_gene)
+        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
 }
 if ( params.dna ){
     f = file(params.dna)
@@ -339,11 +344,33 @@ if(params.aligner == 'salmon' && !params.salmon_index){
         script:
         """
         mkdir salmon
-        salmon index \
-            -t $fasta \
+        salmon index \\
+            -t $fasta \\
             -i salmon
         """
     }
+
+    process makeTransGeneMatrix {
+        tag "$fasta"
+        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
+                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+
+        input:
+        file fasta from Channel.fromPath(params.cdna)
+
+        output:
+        file "trans_gene.txt" into salmon_trans_gene
+
+        script:
+        """
+        grep '>' $fasta \\
+        | awk '{ print $1, $4 }' \\
+        | sed 's\/>\/\/' \\
+        | sed 's\/gene:\/\/' \\
+            > trans_gene.txt
+        """
+    }
+
 }
 
 /*
@@ -632,6 +659,7 @@ if(params.aligner == 'salmon'){
         input:
         file reads from trimmed_reads
         file index from salmon_index.collect()
+        file trans_gene from salmon_trans_gene
 
         output:
         set file("*Log.final.out"), file ('*.bam') into star_aligned
@@ -652,7 +680,7 @@ if(params.aligner == 'salmon'){
             -o . \\
             -1 ${reads[0]} \\
             -2 ${reads[1]} \\
-            -g ${params.salmon_mart} \\
+            -g ${trans_gene} \\
             --useVBOpt \\
             --numBootstraps 100
         """
