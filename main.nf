@@ -620,7 +620,7 @@ if(params.aligner == 'star'){
 }
 
 if(params.aligner == 'salmon'){
-    log.info "Test!"
+    log.info salmon_index.collect().view()
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
