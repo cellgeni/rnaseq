@@ -662,12 +662,11 @@ if(params.aligner == 'salmon'){
         file trans_gene from salmon_trans_gene
 
         output:
-        set file("*Log.final.out"), file ('*.bam') into star_aligned
-        file "*.out" into alignment_logs
-        file "*SJ.out.tab"
-        file "*Log.out" into salmon_stdout
+        file "${prefix}.quant.sf" into salmon_trans
+        file "${prefix}.quant.genes.sf" into salmon_genes
 
         script:
+        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         """
         salmon quant \\
             -i $index \\
@@ -683,6 +682,8 @@ if(params.aligner == 'salmon'){
             -g ${trans_gene} \\
             --useVBOpt \\
             --numBootstraps 100
+        mv quant.sf ${prefix}.quant.sf
+        mv quant.genes.sf ${prefix}.quant.genes.sf
         """
     }
 }
@@ -808,12 +809,10 @@ if(params.aligner != 'salmon'){
         cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
         """
     }
-}
 
 /*
  * STEP 9 - Merge featurecounts
  */
-if(params.aligner != 'salmon'){
     process merge_featureCounts {
         tag "${input_files[0].baseName - '.sorted'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
@@ -832,4 +831,29 @@ if(params.aligner != 'salmon'){
         merge_featurecounts.py -o merged_gene_counts.txt -i $input_files
         """
     }
+}
+
+if(params.aligner == 'salmon'){
+    
+    process mergeSalmonCounts {
+        tag "${input_trans[0].baseName - '.quant.sf'}"
+        publishDir "${params.outdir}/mergedCounts", mode: 'copy'
+
+        beforeScript "set +u; source activate rnaseq${version}"
+        afterScript "set +u; source deactivate"
+
+        input:
+        file input_trans from salmon_trans.collect()
+        file input_genes from salmon_genes.collect()
+
+        output:
+        file 'merged_*'
+
+        script:
+        """
+        merge_salmon.R $input_trans trans
+        merge_salmon.R $input_genes genes
+        """
+    }
+
 }
