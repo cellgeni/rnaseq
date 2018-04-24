@@ -164,7 +164,7 @@ if ( params.hisat2_index && params.aligner == 'hisat2' ){
 }
 if ( params.salmon_index && params.aligner == 'salmon' ){
     salmon_index = Channel
-        .fromPath("${params.salmon_index}*")
+        .fromPath(params.salmon_index)
         .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
 }
 if ( params.dna ){
@@ -641,19 +641,19 @@ if(params.aligner == 'salmon'){
 
         script:
         """
-        salmon quant \
-            -i $index \
-            -l ISR \
-            -p ${task.cpus} \
-            --seqBias \
-            --gcBias \
-            --posBias \
-            -q \
-            -o . \
-            -1 ${reads[0]} \
-            -2 ${reads[1]} \
-            -g ${params.salmon_mart} \
-            --useVBOpt \
+        salmon quant \\
+            -i $index \\
+            -l ISR \\
+            -p ${task.cpus} \\
+            --seqBias \\
+            --gcBias \\
+            --posBias \\
+            -q \\
+            -o . \\
+            -1 ${reads[0]} \\
+            -2 ${reads[1]} \\
+            -g ${params.salmon_mart} \\
+            --useVBOpt \\
             --numBootstraps 100
         """
     }
