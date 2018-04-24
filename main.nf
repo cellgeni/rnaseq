@@ -806,37 +806,6 @@ if(params.aligner != 'salmon'){
     }
 }
 
-def num_bams
-bam_count.count().subscribe{ num_bams = it }
-
-/*
- * STEP 11 - edgeR MDS and heatmap
- */
-process sample_correlation {
-    tag "${input_files[0].toString() - '.sorted_gene.featureCounts.txt' - 'Aligned'}"
-    publishDir "${params.outdir}/sample_correlation", mode: 'copy'
-
-    input:
-    file input_files from geneCounts.collect()
-    bam_count
-    file mdsplot_header
-    file heatmap_header
-    output:
-    file "*.{txt,pdf,csv}" into sample_correlation_results
-
-    when:
-    num_bams > 2 && (!params.sampleLevel)
-
-    script: // This script is bundled with the pipeline, in RNAseq/bin/
-    """
-    edgeR_heatmap_MDS.r $input_files
-    cat $mdsplot_header edgeR_MDS_Aplot_coordinates_mqc.csv >> tmp_file
-    mv tmp_file edgeR_MDS_Aplot_coordinates_mqc.csv
-    cat $heatmap_header log2CPM_sample_distances_mqc.csv >> tmp_file
-    mv tmp_file log2CPM_sample_distances_mqc.csv
-    """
-}
-
 /*
  * Parse software version numbers
  */
