@@ -620,7 +620,6 @@ if(params.aligner == 'star'){
 }
 
 if(params.aligner == 'salmon'){
-    log.info trimmed_reads
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
@@ -642,7 +641,7 @@ if(params.aligner == 'salmon'){
 
         script:
         """
-        $salmon quant \
+        salmon quant \
             -i $index \
             -l ISR \
             -p 8 \
