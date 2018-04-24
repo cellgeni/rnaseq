@@ -516,7 +516,7 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set val(cram), file("*.fastq") optional true into fastq_trim_galore
+    set val(cram), file("*.fastq") optional true into fastqs
 
     script:
     // samtools consumes more than what's available
@@ -540,41 +540,6 @@ process cram2fastq {
     fi
     """
 }
-
-/*
- * STEP 2 - Trim Galore!
- */
-process trim_galore {
-    tag "${cram.baseName}"
-    publishDir "${params.outdir}/trim_galore", mode: 'copy',
-        saveAs: {filename ->
-            if (filename.indexOf("_fastqc") > 0) "FastQC/$filename"
-            else if (filename.indexOf("trimming_report.txt") > 0) "logs/$filename"
-            else params.saveTrimmed ? filename : null
-        }
-
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
-    input:
-    set val(cram), file(reads) from fastq_trim_galore
-
-    output:
-    file "*fq.gz" into trimmed_reads
-    file "*trimming_report.txt" into trimgalore_results, trimgalore_logs
-    file "*_fastqc.{zip,html}" into trimgalore_fastqc_reports
-
-
-    script:
-    c_r1 = clip_r1 > 0 ? "--clip_r1 ${clip_r1}" : ''
-    c_r2 = clip_r2 > 0 ? "--clip_r2 ${clip_r2}" : ''
-    tpc_r1 = three_prime_clip_r1 > 0 ? "--three_prime_clip_r1 ${three_prime_clip_r1}" : ''
-    tpc_r2 = three_prime_clip_r2 > 0 ? "--three_prime_clip_r2 ${three_prime_clip_r2}" : ''
-    """
-    trim_galore --paired --fastqc --gzip $c_r1 $c_r2 $tpc_r1 $tpc_r2 $reads
-    """
-}
-
 
 /*
  * STEP 3 - align with STAR
@@ -614,7 +579,7 @@ if(params.aligner == 'star'){
         afterScript "set +u; source deactivate"
 
         input:
-        file reads from trimmed_reads
+        file reads from fastqs
         file index from star_index.collect()
         file gtf from gtf_star.collect()
 
@@ -657,7 +622,7 @@ if(params.aligner == 'salmon'){
         afterScript "set +u; source deactivate"
 
         input:
-        file reads from trimmed_reads
+        file reads from fastqs
         file index from salmon_index.collect()
         file trans_gene from salmon_trans_gene.collect()
 
@@ -706,7 +671,7 @@ if(params.aligner == 'hisat2'){
         afterScript "set +u; source deactivate"
 
         input:
-        file reads from trimmed_reads
+        file reads from fastqs
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
