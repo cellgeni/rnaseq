@@ -488,7 +488,6 @@ process cram2fastq {
     file cram from sample_cram_file
 
     output:
-    set val(cram), file("*.fastq") optional true into fastq_fastqc
     set val(cram), file("*.fastq") optional true into fastq_trim_galore
 
     script:
