@@ -87,6 +87,7 @@ params.reverse_stranded = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
+params.salmon_mart = params.genome ? params.genomes[ params.genome ].mart ?: false : false
 params.star_overhang = '74'
 params.dna = params.genome ? params.genomes[ params.genome ].dna ?: false : false
 params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : false
@@ -643,7 +644,7 @@ if(params.aligner == 'salmon'){
         salmon quant \
             -i $index \
             -l ISR \
-            -p 8 \
+            -p ${task.cpus} \
             --seqBias \
             --gcBias \
             --posBias \
@@ -651,7 +652,7 @@ if(params.aligner == 'salmon'){
             -o . \
             -1 ${reads[0]} \
             -2 ${reads[1]} \
-            -g $salmon_mart \
+            -g ${params.salmon_mart} \
             --useVBOpt \
             --numBootstraps 100
         """
