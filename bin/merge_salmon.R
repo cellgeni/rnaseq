@@ -5,7 +5,7 @@ args <- commandArgs(trailingOnly=TRUE)
 tpms <- NULL
 counts <- NULL
 for(f in head(args, -1)) {
-    d <- read.table(fn, header = T)
+    d <- read.table(f, header = T)
     tpms <- cbind(tpms, d[,4])
     counts <- cbind(counts, d[,5])
 }
