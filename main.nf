@@ -295,7 +295,7 @@ try {
  */
 if(params.aligner == 'star' && !params.star_index){
     process makeSTARindex {
-        tag fasta
+        tag "$fasta"
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
