@@ -304,7 +304,7 @@ if(params.aligner == 'star' && !params.star_index){
 
         input:
         file fasta from Channel.fromPath(params.dna)
-        file gtf from Channel.fromPath(params.dna)
+        file gtf from Channel.fromPath(params.gtf)
 
         output:
         file "star" into star_index
