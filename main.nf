@@ -599,7 +599,6 @@ if(params.aligner == 'star'){
             --twopassMode Basic \\
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
-            --readFilesCommand gunzip -c \\
             --runDirPerm All_RWX \\
             --outFileNamePrefix $prefix
         """
