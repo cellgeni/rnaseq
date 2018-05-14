@@ -439,24 +439,24 @@ if(params.aligner == 'hisat2' && !params.hisat2_index && !params.download_hisat2
 /*
  * PREPROCESSING - Build BED12 file
  */
-if(!params.bed12){
-    process makeBED12 {
-        tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+// if(!params.bed12){
+//     process makeBED12 {
+//         tag "$gtf"
+//         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
+//                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
-        input:
-        file gtf from gtf_makeBED12
+//         input:
+//         file gtf from gtf_makeBED12
 
-        output:
-        file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
+//         output:
+//         file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
 
-        script: // This script is bundled with the pipeline, in RNAseq/bin/
-        """
-        gtf2bed $gtf > ${gtf.baseName}.bed
-        """
-    }
-}
+//         script: // This script is bundled with the pipeline, in RNAseq/bin/
+//         """
+//         gtf2bed $gtf > ${gtf.baseName}.bed
+//         """
+//     }
+// }
 
 /*
  * Create a channel for input sample ids
