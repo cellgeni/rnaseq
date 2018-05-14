@@ -191,9 +191,9 @@ if( params.gtf ){
         .into { gtf_makeSTARindex; gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12;
               gtf_star; gtf_dupradar; gtf_featureCounts; gtf_stringtieFPKM }
 }
-else if ( !params.download_gtf ){
-    exit 1, "No GTF annotation specified!"
-}
+// else if ( !params.download_gtf ){
+//     exit 1, "No GTF annotation specified!"
+// }
 if( params.bed12 ){
     bed12 = Channel
         .fromPath(params.bed12)
