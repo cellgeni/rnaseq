@@ -298,9 +298,6 @@ if(params.aligner == 'star' && !params.star_index){
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
-
         input:
         file fasta from Channel.fromPath(params.dna)
         file gtf from Channel.fromPath(params.gtf)
@@ -330,9 +327,6 @@ if(params.aligner == 'salmon' && !params.salmon_index){
         tag "$fasta"
         publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
                    saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
 
         input:
         file fasta from Channel.fromPath(params.cdna)
@@ -479,9 +473,6 @@ process irods {
 process merge_sample_crams {
     tag "${sample}"
 
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
-
     input: 
         set val(sample), file(crams) from cram_files
     output: 
@@ -498,9 +489,6 @@ process merge_sample_crams {
 
 process cram2fastq {
     tag "${cram.baseName}"
-    
-    beforeScript "set +u; source activate rnaseq${version}"
-    afterScript "set +u; source deactivate"
 
     input:
     file cram from sample_cram_file
@@ -565,9 +553,6 @@ if(params.aligner == 'star'){
                 else params.saveAlignedIntermediates ? filename : null
             }
 
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
-
         input:
         file reads from fastqs
         file index from star_index.collect()
@@ -606,9 +591,6 @@ if(params.aligner == 'salmon'){
     process salmon {
         tag "$prefix"
         publishDir "${params.outdir}/Salmon", mode: 'copy'
-
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
 
         input:
         file reads from fastqs
@@ -656,9 +638,6 @@ if(params.aligner == 'hisat2'){
                 else params.saveAlignedIntermediates ? filename : null
             }
 
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
-
         input:
         file reads from fastqs
         file hs2_indices from hs2_indices.collect()
@@ -700,9 +679,6 @@ if(params.aligner == 'hisat2'){
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename -> params.saveAlignedIntermediates ? "aligned_sorted/$filename" : null }
 
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
-
         input:
         file hisat2_bam
 
@@ -734,9 +710,6 @@ if(params.aligner != 'salmon'){
                 else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
                 else "$filename"
             }
-
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
 
         input:
         file bam_featurecounts
@@ -771,9 +744,6 @@ if(params.aligner != 'salmon'){
         tag "${input_files[0].baseName - '.sorted'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
-
         input:
         file input_files from featureCounts_to_merge.collect()
 
@@ -792,9 +762,6 @@ if(params.aligner == 'salmon'){
     process mergeSalmonCounts {
         tag "${input_trans[0].baseName - '.quant.sf'}"
         publishDir "${params.outdir}/mergedCounts", mode: 'copy'
-
-        beforeScript "set +u; source activate rnaseq${version}"
-        afterScript "set +u; source deactivate"
 
         input:
         file input_trans from salmon_trans.collect()
