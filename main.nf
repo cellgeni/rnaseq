@@ -68,7 +68,7 @@ def helpMessage() {
 /*
  * utils is shared between projects. Include it in the PATH so scripts are found.
  */
-env.PATH = "$baseDir/utils:$PATH"
+// env.PATH = "$baseDir/utils:$PATH"
 
 
 /*
