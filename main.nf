@@ -505,8 +505,8 @@ process crams_to_fastq {
             samtools fastq \\
                 -N \\
                 -@ ${task.cpus} \\
-                -1 ${cram.baseName}_1.fastq.gz \\
-                -2 ${cram.baseName}_2.fastq.gz \\
+                -1 ${sample}_1.fastq.gz \\
+                -2 ${sample}_2.fastq.gz \\
                 -
     fi
     """
