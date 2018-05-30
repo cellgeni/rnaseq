@@ -562,10 +562,12 @@ if(params.aligner == 'star'){
 
         script:
         prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        file1 = reads[0]
+        file2 = reads[1]
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
-            --readFilesIn $reads --readFilesCommand zcat \\
+            --readFilesIn <(gzip -dc $file1 | head -n 100000) <(gzip -dc $file2 | head -n 100000) \\
             --runThreadN ${task.cpus} \\
             --twopassMode Basic \\
             --outWigType bedGraph \\
