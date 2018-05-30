@@ -477,39 +477,23 @@ process irods {
     """
 }
 
-process merge_sample_crams {
+process crams_to_fastq {
     tag "${sample}"
+
+    scratch true
 
     input: 
         set val(sample), file(crams) from cram_files
     output: 
-        file "${sample}.cram" into sample_cram_file
+        file "${sample}.fastq.gz" into fastqs
     script:
-    """
-    samtools merge -f ${sample}.cram ${crams}
-    """
-}
 
-/*
- * STEP 1 - cram to fastq conversion
- */
-
-process cram2fastq {
-    tag "${cram.baseName}"
-
-    input:
-    file cram from sample_cram_file
-
-    output:
-    file "*.fastq" optional true into fastqs
-
-    script:
-    // samtools consumes more than what's available
     def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
+    samtools merge -f ${sample}.cram ${crams}
     # check that the size of the cram file is >0.5Mb
     minimumsize=500000
-    actualsize=\$(wc -c <"${cram}")
+    actualsize=\$(wc -c <"${sample}.cram")
     if [ \$actualsize -ge \$minimumsize ]; then
         samtools sort \\
             -n \\
@@ -519,8 +503,8 @@ process cram2fastq {
             samtools fastq \\
                 -N \\
                 -@ ${task.cpus} \\
-                -1 ${cram.baseName}_1.fastq \\
-                -2 ${cram.baseName}_2.fastq \\
+                -1 ${cram.baseName}_1.fastq.gz \\
+                -2 ${cram.baseName}_2.fastq.gz \\
                 -
     fi
     """
