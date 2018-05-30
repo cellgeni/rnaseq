@@ -86,6 +86,7 @@ if (params.help){
 }
 
 // Configurable variables
+params.scratch = false
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -482,7 +483,9 @@ process irods {
 process crams_to_fastq {
     tag "${sample}"
 
-    scratch true
+    if (params.scratch) {
+       scratch true
+    }
 
     input: 
         set val(sample), file(crams) from cram_files
