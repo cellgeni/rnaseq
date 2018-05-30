@@ -466,7 +466,9 @@ sample_list = Channel.fromPath('samples.txt')
 
 process irods {
     tag "${sample}"
-    
+
+    maxForks 29 
+
     input: 
         val sample from sample_list.flatMap{ it.readLines() }
     output: 
