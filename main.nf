@@ -565,7 +565,7 @@ if(params.aligner == 'star'){
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
-            --readFilesIn $reads  \\
+            --readFilesIn <(gzip -dc $reads)  \\
             --runThreadN ${task.cpus} \\
             --twopassMode Basic \\
             --outWigType bedGraph \\
