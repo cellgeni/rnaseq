@@ -501,7 +501,7 @@ process crams_to_fastq {
             -n \\
             -@ ${task.cpus} \\
             -m ${avail_mem} \\
-            ${cram} | \\
+            ${sample}.cram | \\
             samtools fastq \\
                 -N \\
                 -@ ${task.cpus} \\
