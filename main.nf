@@ -490,7 +490,7 @@ process crams_to_fastq {
     input: 
         set val(sample), file(crams) from cram_files
     output: 
-        file "${sample}.fastq.gz" into fastqs
+        file "${sample}_?.fastq.gz" into fastqs
     script:
 
     def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
