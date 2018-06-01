@@ -499,6 +499,8 @@ process crams_to_fastq {
     # check that the size of the cram file is >0.5Mb
     minimumsize=500000
     actualsize=\$(wc -c <"${sample}.cram")
+    f1=${sample}_1.fastq.gz
+    f2=${sample}_2.fastq.gz
     if [ \$actualsize -ge \$minimumsize ]; then
         samtools sort \\
             -n \\
@@ -508,9 +510,12 @@ process crams_to_fastq {
             samtools fastq \\
                 -N \\
                 -@ ${task.cpus} \\
-                -1 ${sample}_1.fastq.gz \\
-                -2 ${sample}_2.fastq.gz \\
+                -1 \$f1 -2 \$f2 \\
                 -
+        if [ ! -e \$f1 ] || [ ! -e \$f2 ]; then
+            echo "$f1 or $f2 not created"
+            false
+        fi
     fi
     """
 }
