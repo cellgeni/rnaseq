@@ -512,8 +512,11 @@ process crams_to_fastq {
                 -@ ${task.cpus} \\
                 -1 \$f1 -2 \$f2 \\
                 -
-        if [ ! -e \$f1 ] || [ ! -e \$f2 ]; then
-            echo "$f1 or $f2 not created"
+        # This check prompted by cases where only a single file was produced with exit code 0.
+        # Do not know whether the cause was samtools, the file system, the code, or something else.
+        # Normally this check should not be needed.
+        if [ ! -s "\$f1" ] || [ ! -s "\$f2" ]; then
+            >&2 echo "\$f1 or \$f2 not created"
             false
         fi
     fi
