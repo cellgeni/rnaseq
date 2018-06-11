@@ -475,7 +475,7 @@ process irods {
         set val(sample), file('*.cram') optional true into cram_files
     script:
     """
-    irods.sh ${sample}
+    bash irods.sh ${sample}
     """
 }
 
