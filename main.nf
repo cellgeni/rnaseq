@@ -87,6 +87,7 @@ if (params.help){
 
 // Configurable variables
 params.scratch = false
+params.samplefile = 'samples.txt'
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -229,6 +230,7 @@ log.info "         RNASeq pipeline v${version}"
 log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
+summary['Sample file']  = params.samplefile
 summary['Reads']        = params.reads
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
@@ -463,7 +465,7 @@ if(!params.bed12){
 /*
  * Create a channel for input sample ids
  */
-sample_list = Channel.fromPath('samples.txt')
+sample_list = Channel.fromPath(params.samplefile)
 
 process irods {
     tag "${sample}"
