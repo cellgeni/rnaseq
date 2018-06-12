@@ -465,7 +465,9 @@ if(!params.bed12){
 /*
  * Create a channel for input sample ids
  */
-sample_list = Channel.fromPath(params.samplefile)
+if (false) {
+  sample_list = Channel.fromPath(params.samplefile)
+}
 
 process irods {
     tag "${sample}"
