@@ -7,4 +7,4 @@ RUN conda update -n base conda
 
 COPY environment.yml /
 RUN conda env create -f /environment.yml && conda clean -a
-ENV PATH /opt/conda/envs/rnaseq1.5/bin:$PATH
+ENV PATH /opt/conda/envs/rnaseq1.6dev/bin:$PATH
