@@ -42,15 +42,15 @@ if (params.aligner == 'hisat2' || params.aligner == 'salmon') {
 
 
 Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_fa_channel }
-Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .set { gtf_channel    }
+Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .set { gtf_channel; gtf_makeBED12 }
 
-if( params.gtf ){
-    Channel
-        .fromPath(params.gtf)
-        .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
-        .into { gtf_makeSTARindex; gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12;
-              gtf_star; gtf_dupradar; gtf_featureCounts; gtf_stringtieFPKM }
-}
+
+// if( params.gtf ){
+//     Channel
+//         .fromPath(params.gtf)
+//         .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
+//         .into { gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12; }
+// }
 
 
 //  Has the run name been specified by the user?
@@ -66,6 +66,8 @@ def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
+summary['DNA file']     = params.dna
+summary['GTF file']     = params.gtf
 log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
