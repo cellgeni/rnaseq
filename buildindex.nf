@@ -42,7 +42,7 @@ if (params.aligner == 'hisat2' || params.aligner == 'salmon') {
 
 
 Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_fa_channel }
-Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .set { gtf_channel; gtf_makeBED12 }
+Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_channel; gtf_makeBED12 }
 
 
 // if( params.gtf ){
