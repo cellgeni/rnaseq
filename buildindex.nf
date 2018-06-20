@@ -27,8 +27,7 @@ params.saveReference = false
 params.saveTrimmed = false
 params.saveAlignedIntermediates = false
 params.outdir = './results'
-params.email = false
-params.plaintext_email = false
+params.name = false
 
 
 // Choose aligner
@@ -42,8 +41,8 @@ if (params.aligner == 'hisat2' || params.aligner == 'salmon') {
 }
 
 
-Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .into { dna_fa_channel }
-Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_channel    }
+Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_fa_channel }
+Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .set { gtf_channel    }
 
 if( params.gtf ){
     Channel
