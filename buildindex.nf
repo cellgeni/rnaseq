@@ -20,17 +20,12 @@ params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : fa
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.multiqc_config = "$baseDir/conf/multiqc_config.yaml"
 params.splicesites = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
-params.saveReference = false
-params.saveTrimmed = false
-params.saveAlignedIntermediates = false
 params.outdir = './results'
 params.name = false
 
 
-// Choose aligner
 params.aligner = 'star'
 if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 'salmon'){
     exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
@@ -41,16 +36,11 @@ if (params.aligner == 'hisat2' || params.aligner == 'salmon') {
 }
 
 
+if (!params.dna) { exit 1, "Please set a fasta reference file in the config file" }
+if (!params.gtf) { exit 1, "Please set a gtf reference file in the config file"   }
+
 Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_fa_channel }
 Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_channel; gtf_makeBED12 }
-
-
-// if( params.gtf ){
-//     Channel
-//         .fromPath(params.gtf)
-//         .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
-//         .into { gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12; }
-// }
 
 
 //  Has the run name been specified by the user?
@@ -74,8 +64,7 @@ log.info "========================================="
 
 process makeSTARindex {
     tag "$fasta"
-    publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-               saveAs: { params.saveReference ? it : null }, mode: 'copy'
+    publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
     input:
     file fasta from dna_fa_channel
@@ -102,14 +91,13 @@ if(params.aligner == 'salmon') {
 
     process makeSalmonIndex {
         tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from Channel.fromPath(params.cdna)
 
         output:
-        file "salmon" into salmon_index
+        file "salmon"
 
         script:
         """
@@ -122,14 +110,13 @@ if(params.aligner == 'salmon') {
 
     process makeTransGeneMatrix {
         tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from Channel.fromPath(params.cdna)
 
         output:
-        file "trans_gene.txt" into salmon_trans_gene
+        file "trans_gene.txt"
 
         script:
         """
@@ -148,8 +135,7 @@ if (params.aligner == 'hisat2') {
 
     process makeHisatSplicesites {
         tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file gtf from gtf_makeHisatSplicesites
@@ -165,8 +151,7 @@ if (params.aligner == 'hisat2') {
 
     process makeHISATindex {
         tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
+        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from fasta
@@ -174,7 +159,7 @@ if (params.aligner == 'hisat2') {
         file gtf from gtf_makeHISATindex
 
         output:
-        file "${fasta.baseName}.*.ht2" into hs2_indices
+        file "${fasta.baseName}.*.ht2"
 
         script:
         if( task.memory == null ){
@@ -207,16 +192,15 @@ if (params.aligner == 'hisat2') {
 
 process makeBED12 {
     tag "$gtf"
-    publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-               saveAs: { params.saveReference ? it : null }, mode: 'copy'
+    publishDir: "${params.outdir}/reference_genome", mode: 'copy'
 
     input:
     file gtf from gtf_makeBED12
 
     output:
-    file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
+    file "${gtf.baseName}.bed"
 
-    script: // This script is bundled with the pipeline, in RNAseq/bin/
+    script:
     """
     gtf2bed $gtf > ${gtf.baseName}.bed
     """
