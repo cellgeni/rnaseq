@@ -64,7 +64,7 @@ log.info "========================================="
 
 process makeSTARindex {
     tag "$fasta"
-    publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
     input:
     file fasta from dna_fa_channel
@@ -91,7 +91,7 @@ if(params.aligner == 'salmon') {
 
     process makeSalmonIndex {
         tag "$fasta"
-        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+        publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from Channel.fromPath(params.cdna)
@@ -110,7 +110,7 @@ if(params.aligner == 'salmon') {
 
     process makeTransGeneMatrix {
         tag "$fasta"
-        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+        publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from Channel.fromPath(params.cdna)
@@ -135,7 +135,7 @@ if (params.aligner == 'hisat2') {
 
     process makeHisatSplicesites {
         tag "$gtf"
-        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+        publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file gtf from gtf_makeHisatSplicesites
@@ -151,7 +151,7 @@ if (params.aligner == 'hisat2') {
 
     process makeHISATindex {
         tag "$fasta"
-        publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+        publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
         file fasta from fasta
@@ -192,7 +192,7 @@ if (params.aligner == 'hisat2') {
 
 process makeBED12 {
     tag "$gtf"
-    publishDir: "${params.outdir}/reference_genome", mode: 'copy'
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
     input:
     file gtf from gtf_makeBED12
