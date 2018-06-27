@@ -127,6 +127,8 @@ multiqc_config = file(params.multiqc_config)
 output_docs = file("$baseDir/docs/output.md")
 params.sampleLevel = false
 
+gene_biotype = params.gtf.matches(".*gencode.*") ? "gene_type" : "gene_biotype"
+
 // Custom trimming options
 params.clip_r1 = 0
 params.clip_r2 = 0
@@ -234,6 +236,7 @@ summary['Sample file']  = params.samplefile
 summary['Reads']        = params.reads
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
+summary['Biotype tag']  = gene_biotype
 if( params.pico ) summary['Library Prep'] = "SMARTer Stranded Total RNA-Seq Kit - Pico Input"
 summary['Strandedness'] = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
 summary['Trim R1'] = clip_r1
@@ -740,7 +743,7 @@ if(params.aligner != 'salmon'){
         }
         """
         featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-        featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        featureCounts -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
         cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
         """
