@@ -26,7 +26,6 @@ def helpMessage() {
     nextflow run cellgeni/RNAseq --reads '*_R{1,2}.fastq.gz' --genome GRCh37 -profile farm3
 
     Mandatory arguments:
-      --reads                       Path to input data (must be surrounded with quotes)
       --genome                      Name of iGenomes reference
       -profile                      Hardware config to use. farm3 / farm4 / openstack / docker / aws
 
@@ -41,24 +40,10 @@ def helpMessage() {
       --fasta                       Path to Fasta reference
       --gtf                         Path to GTF file
       --bed12                       Path to bed12 file
-      --downloadFasta               If no STAR / Fasta reference is supplied, a URL can be supplied to download a Fasta file at the start of the pipeline.
-      --downloadGTF                 If no GTF reference is supplied, a URL can be supplied to download a Fasta file at the start of the pipeline.
-      --saveReference               Save the generated reference files the the Results directory.
       --saveAlignedIntermediates    Save the BAM files from the Aligment step  - not done by default
-
-    Trimming options
-      --clip_r1 [int]               Instructs Trim Galore to remove bp from the 5' end of read 1 (or single-end reads)
-      --clip_r2 [int]               Instructs Trim Galore to remove bp from the 5' end of read 2 (paired-end reads only)
-      --three_prime_clip_r1 [int]   Instructs Trim Galore to remove bp from the 3' end of read 1 AFTER adapter/quality trimming has been performed
-      --three_prime_clip_r2 [int]   Instructs Trim Galore to re move bp from the 3' end of read 2 AFTER adapter/quality trimming has been performed
-
-    Presets:
-      --pico                        Sets trimming and standedness settings for the SMARTer Stranded Total RNA-Seq Kit - Pico Input kit. Equivalent to: --forward_stranded --clip_r1 3 --three_prime_clip_r2 3
 
     Other options:
       --outdir                      The output directory where the results will be saved
-      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
-      --sampleLevel                 Used to turn of the edgeR MDS and heatmap. Set automatically when running on fewer than 3 samples
       --clusterOptions              Extra SLURM options, used in conjunction with Uppmax.config
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
     """.stripIndent()
@@ -103,58 +88,24 @@ params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : fa
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.multiqc_config = "$baseDir/conf/multiqc_config.yaml"
 params.splicesites = false
 params.download_hisat2index = false
 params.download_fasta = false
 params.download_gtf = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
-params.saveReference = false
-params.saveTrimmed = false
 params.saveAlignedIntermediates = false
-params.reads = 'cram/*.cram'
 params.outdir = './results'
-params.email = false
-params.plaintext_email = false
-params.mdsplot_header = "$baseDir/assets/mdsplot_header.txt"
-params.heatmap_header = "$baseDir/assets/heatmap_header.txt"
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
-mdsplot_header = file(params.mdsplot_header)
-heatmap_header = file(params.heatmap_header)
 biotypes_header = file(params.biotypes_header)
-multiqc_config = file(params.multiqc_config)
 output_docs = file("$baseDir/docs/output.md")
-params.sampleLevel = false
 
 gene_biotype = params.gtf.matches(".*gencode.*") ? "gene_type" : "gene_biotype"
 
-// Custom trimming options
-params.clip_r1 = 0
-params.clip_r2 = 0
-params.three_prime_clip_r1 = 0
-params.three_prime_clip_r2 = 0
-
-// Define regular variables so that they can be overwritten
-clip_r1 = params.clip_r1
-clip_r2 = params.clip_r2
-three_prime_clip_r1 = params.three_prime_clip_r1
-three_prime_clip_r2 = params.three_prime_clip_r2
 forward_stranded = params.forward_stranded
 reverse_stranded = params.reverse_stranded
 unstranded = params.unstranded
 
-// Preset trimming options
-params.pico = false
-if (params.pico){
-  clip_r1 = 3
-  clip_r2 = 0
-  three_prime_clip_r1 = 0
-  three_prime_clip_r2 = 3
-  forward_stranded = true
-  reverse_stranded = false
-  unstranded = false
-}
 
 // Choose aligner
 params.aligner = 'star'
@@ -233,16 +184,10 @@ log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Sample file']  = params.samplefile
-summary['Reads']        = params.reads
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
 summary['Biotype tag']  = gene_biotype
-if( params.pico ) summary['Library Prep'] = "SMARTer Stranded Total RNA-Seq Kit - Pico Input"
 summary['Strandedness'] = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
-summary['Trim R1'] = clip_r1
-summary['Trim R2'] = clip_r2
-summary["Trim 3' R1"] = three_prime_clip_r1
-summary["Trim 3' R2"] = three_prime_clip_r2
 if(params.aligner == 'star'){
     summary['Aligner'] = "STAR"
     if(params.star_index)          summary['STAR Index']   = params.star_index
@@ -267,8 +212,6 @@ if(params.aligner == 'hisat2') {
 if(params.gtf)                 summary['GTF Annotation']  = params.gtf
 else if(params.download_gtf)   summary['GTF URL']         = params.download_gtf
 if(params.bed12)               summary['BED Annotation']  = params.bed12
-summary['Save Reference'] = params.saveReference ? 'Yes' : 'No'
-summary['Save Trimmed']   = params.saveTrimmed ? 'Yes' : 'No'
 summary['Save Intermeds'] = params.saveAlignedIntermediates ? 'Yes' : 'No'
 summary['Max Memory']     = params.max_memory
 summary['Max CPUs']       = params.max_cpus
@@ -282,7 +225,6 @@ summary['Current path']   = "$PWD"
 summary['Script dir']     = workflow.projectDir
 summary['Config Profile'] = workflow.profile
 if(params.project) summary['UPPMAX Project'] = params.project
-if(params.email) summary['E-mail Address'] = params.email
 log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
@@ -302,168 +244,7 @@ try {
               "============================================================"
 }
 
-/*
- * PREPROCESSING - Build STAR index
- */
-if(params.aligner == 'star' && !params.star_index){
-    process makeSTARindex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
-        input:
-        file fasta from Channel.fromPath(params.dna)
-        file gtf from Channel.fromPath(params.gtf)
-
-        output:
-        file "star" into star_index
-
-        script:
-        """
-        mkdir star
-        STAR \\
-            --runMode genomeGenerate \\
-            --runThreadN ${task.cpus} \\
-            --sjdbGTFfile $gtf \\
-            --sjdbOverhang ${params.star_overhang} \\
-            --genomeDir star/ \\
-            --genomeFastaFiles $fasta
-        """
-    }
-}
-
-/*
- * PREPROCESSING - Build Salmon index
- */
-if(params.aligner == 'salmon' && !params.salmon_index){
-    process makeSalmonIndex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from Channel.fromPath(params.cdna)
-
-        output:
-        file "salmon" into salmon_index
-
-        script:
-        """
-        mkdir salmon
-        salmon index \\
-            -t $fasta \\
-            -i salmon
-        """
-    }
-
-    process makeTransGeneMatrix {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from Channel.fromPath(params.cdna)
-
-        output:
-        file "trans_gene.txt" into salmon_trans_gene
-
-        script:
-        """
-        grep '>' $fasta \\
-        | awk '{ print \$1, \$4 }' \\
-        | sed 's/>//' \\
-        | sed 's/gene://' \\
-            > trans_gene.txt
-        """
-    }
-
-}
-
-/*
- * PREPROCESSING - Build HISAT2 splice sites file
- */
-if(params.aligner == 'hisat2' && !params.splicesites){
-    process makeHisatSplicesites {
-        tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file gtf from gtf_makeHisatSplicesites
-
-        output:
-        file "${gtf.baseName}.hisat2_splice_sites.txt" into indexing_splicesites, alignment_splicesites
-
-        script:
-        """
-        hisat2_extract_splice_sites.py $gtf > ${gtf.baseName}.hisat2_splice_sites.txt
-        """
-    }
-}
-/*
- * PREPROCESSING - Build HISAT2 index
- */
-if(params.aligner == 'hisat2' && !params.hisat2_index && !params.download_hisat2index && fasta){
-    process makeHISATindex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from fasta
-        file indexing_splicesites from indexing_splicesites
-        file gtf from gtf_makeHISATindex
-
-        output:
-        file "${fasta.baseName}.*.ht2" into hs2_indices
-
-        script:
-        if( task.memory == null ){
-            log.info "[HISAT2 index build] Available memory not known - defaulting to 0. Specify process memory requirements to change this."
-            avail_mem = 0
-        } else {
-            log.info "[HISAT2 index build] Available memory: ${task.memory}"
-            avail_mem = task.memory.toGiga()
-        }
-        if( avail_mem > params.hisatBuildMemory ){
-            log.info "[HISAT2 index build] Over ${params.hisatBuildMemory} GB available, so using splice sites and exons in HISAT2 index"
-            extract_exons = "hisat2_extract_exons.py $gtf > ${gtf.baseName}.hisat2_exons.txt"
-            ss = "--ss $indexing_splicesites"
-            exon = "--exon ${gtf.baseName}.hisat2_exons.txt"
-        } else {
-            log.info "[HISAT2 index build] Less than ${params.hisatBuildMemory} GB available, so NOT using splice sites and exons in HISAT2 index."
-            log.info "[HISAT2 index build] Use --hisatBuildMemory [small number] to skip this check."
-            extract_exons = ''
-            ss = ''
-            exon = ''
-        }
-        """
-        $extract_exons
-        hisat2-build -p ${task.cpus} $ss $exon $fasta ${fasta.baseName}.hisat2_index
-        """
-    }
-}
-/*
- * PREPROCESSING - Build BED12 file
- */
-if(!params.bed12){
-    process makeBED12 {
-        tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file gtf from gtf_makeBED12
-
-        output:
-        file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
-
-        script: // This script is bundled with the pipeline, in RNAseq/bin/
-        """
-        gtf2bed $gtf > ${gtf.baseName}.bed
-        """
-    }
-}
 
 /*
  * Create a channel for input sample ids
