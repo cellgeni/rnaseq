@@ -31,8 +31,8 @@ if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 
     exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
 }
 
-if (params.aligner == 'hisat2' || params.aligner == 'salmon') {
-    exit 1, "Not yet supported: hisat2 and salmon"
+if (params.aligner == 'hisat2') {
+    exit 1, "Not yet supported: hisat2"
 }
 
 
@@ -62,28 +62,30 @@ log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
 
-process makeSTARindex {
-    tag "$fasta"
-    publishDir "${params.outdir}/reference_genome", mode: 'copy'
+if (params.aligner == 'star') {
+  process makeSTARindex {
+      tag "$fasta"
+      publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
-    input:
-    file fasta from dna_fa_channel
-    file gtf from gtf_channel
+      input:
+      file fasta from dna_fa_channel
+      file gtf from gtf_channel
 
-    output:
-    file "star"
+      output:
+      file "star"
 
-    script:
-    """
-    mkdir star
-    STAR \\
-        --runMode genomeGenerate \\
-        --runThreadN ${task.cpus} \\
-        --sjdbGTFfile $gtf \\
-        --sjdbOverhang ${params.star_overhang} \\
-        --genomeDir star/ \\
-        --genomeFastaFiles $fasta
-    """
+      script:
+      """
+      mkdir star
+      STAR \\
+          --runMode genomeGenerate \\
+          --runThreadN ${task.cpus} \\
+          --sjdbGTFfile $gtf \\
+          --sjdbOverhang ${params.star_overhang} \\
+          --genomeDir star/ \\
+          --genomeFastaFiles $fasta
+      """
+  }
 }
 
 

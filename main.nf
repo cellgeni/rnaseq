@@ -356,6 +356,7 @@ if(params.aligner == 'star'){
         file "*Log.out" into star_log
 
         script:
+                          // todo prune this unwieldy thing.
         prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         file1 = reads[0]
         file2 = reads[1]
