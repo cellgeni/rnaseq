@@ -36,11 +36,15 @@ if (params.aligner == 'hisat2') {
 }
 
 
-if (!params.dna) { exit 1, "Please set a fasta reference file in the config file" }
-if (!params.gtf) { exit 1, "Please set a gtf reference file in the config file"   }
+[ ["dna", params.dna], ["gtf", params.gtf], ["cdna", params.cdna] ].each {
+  if (!it[1]) {
+    exit 1, "Please set a ${it[0]} reference file in the config file"
+  }
+}
 
-Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_fa_channel }
-Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_channel; gtf_makeBED12 }
+Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_star_ch }
+Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_star_ch; gtf_bed_ch }
+Channel.fromPath(params.cdna).ifEmpty { exit 1, "cdna annot file not found" } .into { cdna_salmon_ch; cdna_transgene_ch }
 
 
 //  Has the run name been specified by the user?
@@ -57,6 +61,7 @@ summary['Run Name']     = custom_runName ?: workflow.runName
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
 summary['DNA file']     = params.dna
+summary['CDNA file']    = params.cdna
 summary['GTF file']     = params.gtf
 log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
@@ -68,8 +73,8 @@ if (params.aligner == 'star') {
       publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
       input:
-      file fasta from dna_fa_channel
-      file gtf from gtf_channel
+      file fasta from dna_star_ch
+      file gtf from gtf_star_ch
 
       output:
       file "star"
@@ -96,7 +101,7 @@ if(params.aligner == 'salmon') {
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file fasta from Channel.fromPath(params.cdna)
+        file fasta from cdna_salmon_ch
 
         output:
         file "salmon"
@@ -115,18 +120,14 @@ if(params.aligner == 'salmon') {
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file fasta from Channel.fromPath(params.cdna)
+        file fasta from cdna_transgene_ch
 
         output:
-        file "trans_gene.txt"
+        file "trans_gene*.txt"
 
         script:
         """
-        grep '>' $fasta \\
-        | awk '{ print \$1, \$4 }' \\
-        | sed 's/>//' \\
-        | sed 's/gene://' \\
-            > trans_gene.txt
+        perl -ne '/^>(\\w+)\\s+.*?gene:(\\w+)\\s+/ && print "\$1\\t\$2\n"' $fasta > trans_gene.txt
         """
     }
 }
@@ -197,7 +198,7 @@ process makeBED12 {
     publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
     input:
-    file gtf from gtf_makeBED12
+    file gtf from gtf_bed_ch
 
     output:
     file "${gtf.baseName}.bed"

@@ -72,6 +72,7 @@ if (params.help){
 
 // Configurable variables
 params.scratch = false
+params.main = "NF"                        // use main as primary tag identifying the run; e.g. studyid
 params.samplefile = 'samples.txt'
 params.name = false
 params.project = false
@@ -140,7 +141,7 @@ if ( params.dna ){
 }
 if ( params.cdna ){
     f = file(params.cdna)
-    if( !f.exists() ) exit 1, "Fasta file not found: ${params.cdna}"
+    if( !f.exists() ) exit 1, "cdna file not found: ${params.cdna}"
 }
 if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
     exit 1, "No reference genome specified!"
@@ -280,7 +281,9 @@ process crams_to_fastq {
         file "${sample}_?.fastq.gz" optional true into fastqs
     script:
 
-    def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
+        // 0.6 factor below: see https://github.com/samtools/samtools/issues/494
+        // This is not confirmed entirely just yet.
+    def avail_mem = task.memory == null ? '' : "${ 0.6 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
     samtools merge -f ${sample}.cram ${crams}
     # check that the size of the cram file is >0.5Mb
@@ -546,7 +549,7 @@ if(params.aligner != 'salmon'){
 
         script:
         """
-        merge_featurecounts.py -o merged_gene_counts.txt -i $input_files
+        merge_featurecounts.py -o ${params.main}-genecounts.txt -i $input_files
         """
     }
 }
@@ -568,6 +571,15 @@ if(params.aligner == 'salmon'){
         """
         merge_salmon.R $input_trans trans
         merge_salmon.R $input_genes genes
+
+        #  Todo: need the utils submodule for this (to see merge-files-col.sh)
+        #  and something like the line below. This will now fail.
+        #  env.PATH = "$baseDir/utils:$PATH"
+        #  Additionally this uses the micans/reaper 'transpose' program.
+        #  merge-files-col.sh -b all   -c 4 -E TPM      -y _1.quant.sf       -T -L $input_trans
+        #  merge-files-col.sh -b all   -c 5 -E NumReads -y _1.quant.sf       -T -L $input_trans
+        #  merge-files-col.sh -b genes -c 4 -E TPM      -y _1.quant.genes.sf -T -L Sinput_genes
+        #  merge-files-col.sh -b genes -c 5 -E NumReads -y _1.quant.genes.sf -T -L Sinput_genes
         """
     }
 
