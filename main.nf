@@ -72,6 +72,7 @@ if (params.help){
 
 params.samplefile = false
 params.fastqdir = false
+params.irods = false
 
 // Configurable variables
 params.scratch = false
