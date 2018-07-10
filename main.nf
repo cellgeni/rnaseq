@@ -70,10 +70,12 @@ if (params.help){
     exit 0
 }
 
+params.samplefile = false
+params.fastqdir = false
+
 // Configurable variables
 params.scratch = false
 params.main = "NF"                        // use main as primary tag identifying the run; e.g. studyid
-params.samplefile = 'samples.txt'
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -252,21 +254,26 @@ try {
  */
 sample_list = Channel.fromPath(params.samplefile)
 
+if (params.irods) {
+    process irods {
+        tag "${sample}"
 
-process irods {
-    tag "${sample}"
+        maxForks 29 
 
-    maxForks 29 
-
-    input: 
-        val sample from sample_list.flatMap{ it.readLines() }
-    output: 
-        set val(sample), file('*.cram') optional true into cram_files
-    script:
-    """
-    irods.sh ${sample}
-    """
+        input: 
+            val sample from sample_list.flatMap{ it.readLines() }
+        output: 
+            set val(sample), file('*.cram') optional true into cram_files
+        script:
+        """
+        irods.sh ${sample}
+        """
+    }
+} else if (params.fastqdir) {
+} else {
+  exit 1, "Need --fastqdir <dirname> or --irods true option"
 }
+
 
 process crams_to_fastq {
     tag "${sample}"
@@ -360,7 +367,7 @@ if(params.aligner == 'star'){
 
         script:
                           // todo prune this unwieldy thing.
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         file1 = reads[0]
         file2 = reads[1]
         """
