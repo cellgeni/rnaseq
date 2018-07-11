@@ -288,7 +288,7 @@ process crams_to_fastq {
 
         // 0.6 factor below: see https://github.com/samtools/samtools/issues/494
         // This is not confirmed entirely just yet.
-    def avail_mem = task.memory == null ? '' : "${ 0.6 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
+    def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
     samtools merge -f ${sample}.cram ${crams}
     # check that the size of the cram file is >0.5Mb
