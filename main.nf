@@ -50,11 +50,6 @@ def helpMessage() {
 }
 
 
-/*
- * utils is shared between projects. Include it in the PATH so scripts are found.
- */
-// env.PATH = "$baseDir/utils:$PATH"
-
 
 /*
  * SET UP CONFIGURATION VARIABLES
@@ -407,7 +402,7 @@ if(params.aligner == 'salmon'){
         file "${prefix}.quant.genes.sf" into salmon_genes
 
         script:
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         """
         salmon quant \\
             -i $index \\
@@ -426,6 +421,10 @@ if(params.aligner == 'salmon'){
         mv quant.sf ${prefix}.quant.sf
         mv quant.genes.sf ${prefix}.quant.genes.sf
         """
+
+        // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
+        // Include the row names so merger can check identity.
+        // The merge step will concatenate the rows and re-transpose to obtain final result.
     }
 }
 
@@ -455,7 +454,7 @@ if(params.aligner == 'hisat2'){
 
         script:
         index_base = hs2_indices[0].toString() - ~/.\d.ht2/
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         def rnastrandness = ''
         if (forward_stranded && !unstranded){
             rnastrandness = '--rna-strandness FR'
@@ -581,8 +580,6 @@ if(params.aligner == 'salmon'){
         merge_salmon.R $input_genes genes
 
         #  Todo: need the utils submodule for this (to see merge-files-col.sh)
-        #  and something like the line below. This will now fail.
-        #  env.PATH = "$baseDir/utils:$PATH"
         #  Additionally this uses the micans/reaper 'transpose' program.
         #  merge-files-col.sh -b all   -c 4 -E TPM      -y _1.quant.sf       -T -L $input_trans
         #  merge-files-col.sh -b all   -c 5 -E NumReads -y _1.quant.sf       -T -L $input_trans
