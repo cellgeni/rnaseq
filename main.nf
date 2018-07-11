@@ -10,6 +10,7 @@ vim: syntax=groovy
  https://github.com/cellgeni/RNAseq
  #### Authors
  Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
+ Stijn van Dongen <svd@sanger.ac.uk>
  Original development by SciLifeLabs
 ----------------------------------------------------------------------------------------
 */
@@ -68,6 +69,7 @@ if (params.help){
 params.samplefile = false
 params.fastqdir = false
 params.irods = false
+params.starextra = ""
 
 // Configurable variables
 params.scratch = false
@@ -375,7 +377,8 @@ if(params.aligner == 'star'){
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
-            --outFileNamePrefix $prefix
+            --outFileNamePrefix $prefix \\
+${params.starextra}
         """
     }
     // Filter removes all 'aligned' channels that fail the check
@@ -534,8 +537,8 @@ if(params.aligner != 'salmon'){
             featureCounts_direction = 2
         }
         """
-        featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-        featureCounts -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
         cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
         """
