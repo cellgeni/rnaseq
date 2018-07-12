@@ -344,6 +344,8 @@ def check_log(logs) {
 if(params.aligner == 'star'){
     hisat_stdout = Channel.from(false)
     salmon_stdout = Channel.from(false)
+    extraparams = params.starextra.toString() - ~/^dummy/
+
     process star {
         tag "$prefix"
         publishDir "${params.outdir}/STAR", mode: 'copy',
@@ -378,7 +380,7 @@ if(params.aligner == 'star'){
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
             --outFileNamePrefix $prefix \\
-${params.starextra}
+$extraparams
         """
     }
     // Filter removes all 'aligned' channels that fail the check
@@ -555,7 +557,7 @@ if(params.aligner != 'salmon'){
         file input_files from featureCounts_to_merge.collect()
 
         output:
-        file 'merged_gene_counts.txt'
+        file '*-genecounts.txt'
 
         script:
         """
