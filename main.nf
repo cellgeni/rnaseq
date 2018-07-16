@@ -378,8 +378,7 @@ if(params.aligner == 'star'){
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
-            --outFileNamePrefix $prefix \\
-$extraparams
+            --outFileNamePrefix $prefix
         """
     }
     // Filter removes all 'aligned' channels that fail the check
