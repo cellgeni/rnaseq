@@ -509,7 +509,6 @@ if(params.aligner == 'hisat2'){
 
 if(params.aligner != 'salmon'){
     process featureCounts {
-        extraparams = params.fcextra.toString() - ~/^dummy/
         tag "${bam_featurecounts.baseName - '.sorted'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
             saveAs: {filename ->
@@ -531,6 +530,7 @@ if(params.aligner != 'salmon'){
         file '.command.log' into featurecounts_stdout
 
         script:
+        def extraparams = params.fcextra.toString() - ~/^dummy/
         def featureCounts_direction = 0
         if (forward_stranded && !unstranded) {
             featureCounts_direction = 1
@@ -538,8 +538,8 @@ if(params.aligner != 'salmon'){
             featureCounts_direction = 2
         }
         """
-        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts $extraparams
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts ${extraparams}
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts ${extraparams}
         cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
         """
