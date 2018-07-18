@@ -286,30 +286,33 @@ process crams_to_fastq {
         file "${sample}_?.fastq.gz" optional true into fastqs
     script:
 
-        // 0.6 factor below: see https://github.com/samtools/samtools/issues/494
+        // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
         // This is not confirmed entirely just yet.
-    def avail_mem = task.memory == null ? '' : "${ 0.6 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
+        // def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.7 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
-    samtools merge -f ${sample}.cram ${crams}
+    samtools merge -@ ${task.cpus} -f ${sample}.cram ${crams}
+
     # check that the size of the cram file is >0.5Mb
     minimumsize=500000
     actualsize=\$(wc -c <"${sample}.cram")
+
     f1=${sample}_1.fastq.gz
     f2=${sample}_2.fastq.gz
+
     if [ \$actualsize -ge \$minimumsize ]; then
-        samtools sort \\
-            -n \\
-            -@ ${task.cpus} \\
-            -m ${avail_mem} \\
-            ${sample}.cram | \\
-            samtools fastq \\
-                -N \\
-                -@ ${task.cpus} \\
-                -1 \$f1 -2 \$f2 \\
-                -
+      samtools collate \
+          -O \
+          -@ ${task.cpus} \
+          ${sample}.cram pfx-${sample} | \
+      samtools fastq \\
+          -N \\
+          -@ ${task.cpus} \\
+          -1 \$f1 -2 \$f2 \\
+          -
         # This check prompted by cases where only a single file was produced with exit code 0.
         # Do not know whether the cause was samtools, the file system, the code, or something else.
-        # Normally this check should not be needed.
+        # Normally this check should not be needed; it has not been triggered in a while.
+        # soon to be deleted.
         if [ ! -s "\$f1" ] || [ ! -s "\$f2" ]; then
             >&2 echo "\$f1 or \$f2 not created"
             false
