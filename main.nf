@@ -73,7 +73,7 @@ params.fcextra = ""
 
 // Configurable variables
 params.scratch = false
-params.main = "NF"                        // use main as primary tag identifying the run; e.g. studyid
+params.runtag  = "NF"                        // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -565,7 +565,7 @@ if(params.aligner != 'salmon'){
 
         script:
         """
-        merge_featurecounts.py -o ${params.main}-genecounts.txt -i $input_files
+        merge_featurecounts.py -o ${params.runtag}-genecounts.txt -i $input_files
         """
     }
 }
