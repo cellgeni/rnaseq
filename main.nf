@@ -351,8 +351,9 @@ if(params.aligner == 'star'){
     process star {
         tag "$prefix"
         publishDir "${params.outdir}/STAR", mode: 'copy',
-            saveAs: {filename ->
-                if (filename.indexOf(".bam") == -1) "logs/$filename"
+            saveAs: { filename ->
+                if (filename ==~ /.*.ReadsPerGene.out.tab/) "${params.outdir}/STARcounts/$filename"
+                else if (filename.indexOf(".bam") == -1) "logs/$filename"
                 else params.saveAlignedIntermediates ? filename : null
             }
 
@@ -381,6 +382,7 @@ if(params.aligner == 'star'){
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
+            --quantMode GeneCounts \\
             --outFileNamePrefix $prefix
         """
     }
@@ -542,7 +544,7 @@ if(params.aligner != 'salmon'){
         }
         """
         featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts ${extraparams}
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts ${extraparams}
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $bam_featurecounts
         cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
         """
