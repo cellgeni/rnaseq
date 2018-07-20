@@ -381,7 +381,7 @@ if(params.aligner == 'star'){
     // Filter removes all 'aligned' channels that fail the check
     star_aligned
         .filter { name, logs, bams -> check_log(logs) }
-        .flatMap {  name, logs, bams -> bams }
+        .flatMap {  name, logs, bams -> [name, bams] }
     .set { bam_featurecounts }
 }
 
@@ -485,7 +485,7 @@ if(params.aligner == 'hisat2'){
         file hisat2_bam
 
         output:
-        file "${hisat2_bam.baseName}.sorted.bam" into bam_featurecounts
+        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
