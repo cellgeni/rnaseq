@@ -519,9 +519,12 @@ if(params.aligner != 'salmon'){
         file biotypes_header
 
         output:
-        file "${sampleanme}.gene.featureCounts.txt" into featureCounts_to_merge
-        file "${samplename}.gene.featureCounts.txt.summary"
-        file "${thebam.baseName}_biotype_counts_mqc.txt"
+        // file "${sampleanme}.gene.featureCounts.txt" into featureCounts_to_merge
+        // file "${samplename}.gene.featureCounts.txt.summary"
+        // file "${samplename}.biotype_counts_mqc.txt"
+        file "*.gene.featureCounts.txt" into featureCounts_to_merge
+        file "*.gene.featureCounts.txt.summary"
+        file "*.biotype_counts_mqc.txt"
 
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
