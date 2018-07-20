@@ -254,17 +254,17 @@ sample_list = Channel.fromPath(params.samplefile)
 
 if (params.irods) {
     process irods {
-        tag "${sample}"
+        tag "${samplename}"
 
         maxForks 29 
 
         input: 
-            val sample from sample_list.flatMap{ it.readLines() }
+            val samplename from sample_list.flatMap{ it.readLines() }
         output: 
-            set val(sample), file('*.cram') optional true into cram_files
+            set val(samplename), file('*.cram') optional true into cram_files
         script:
         """
-        irods.sh ${sample}
+        irods.sh ${samplename}
         """
     }
 } else if (params.fastqdir) {
@@ -274,36 +274,36 @@ if (params.irods) {
 
 
 process crams_to_fastq {
-    tag "${sample}"
+    tag "${samplename}"
 
     if (params.scratch) {
        scratch true
     }
 
     input: 
-        set val(sample), file(crams) from cram_files
+        set val(samplename), file(crams) from cram_files
     output: 
-        file "${sample}_?.fastq.gz" optional true into fastqs
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into fastqs
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
         // This is not confirmed entirely just yet.
         // def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.7 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
-    samtools merge -@ ${task.cpus} -f ${sample}.cram ${crams}
+    samtools merge -@ ${task.cpus} -f ${samplename}.cram ${crams}
 
     # check that the size of the cram file is >0.5Mb
     minimumsize=500000
-    actualsize=\$(wc -c <"${sample}.cram")
+    actualsize=\$(wc -c <"${samplename}.cram")
 
-    f1=${sample}_1.fastq.gz
-    f2=${sample}_2.fastq.gz
+    f1=${samplename}_1.fastq.gz
+    f2=${samplename}_2.fastq.gz
 
     if [ \$actualsize -ge \$minimumsize ]; then
       samtools collate \
           -O \
           -@ ${task.cpus} \
-          ${sample}.cram pfx-${sample} | \
+          ${samplename}.cram pfx-${samplename} | \
       samtools fastq \\
           -N \\
           -@ ${task.cpus} \\
@@ -349,7 +349,7 @@ if(params.aligner == 'star'){
     salmon_stdout = Channel.from(false)
 
     process star {
-        tag "$prefix"
+        tag "$samplename"
         publishDir "${params.outdir}/STAR", mode: 'copy',
             saveAs: { filename ->
                 if (filename ==~ /.*.ReadsPerGene.out.tab/) "${params.outdir}/STARcounts/$filename"
@@ -358,19 +358,19 @@ if(params.aligner == 'star'){
             }
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file index from star_index.collect()
         file gtf from gtf_star.collect()
 
         output:
-        set file("*Log.final.out"), file ('*.bam') into star_aligned
+        set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
         file "*.out" into alignment_logs
         file "*SJ.out.tab"
         file "*Log.out" into star_log
 
         script:
                           // todo prune this unwieldy thing.
-        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        // prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         file1 = reads[0]
         file2 = reads[1]
         """
@@ -383,14 +383,14 @@ if(params.aligner == 'star'){
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
             --quantMode GeneCounts \\
-            --outFileNamePrefix $prefix
+            --outFileNamePrefix $samplename
         """
     }
     // Filter removes all 'aligned' channels that fail the check
     star_aligned
-        .filter { logs, bams -> check_log(logs) }
-        .flatMap {  logs, bams -> bams }
-    .into { bam_count; bam_rseqc; bam_preseq; bam_markduplicates; bam_featurecounts; bam_stringtieFPKM; bam_geneBodyCoverage }
+        .filter { name, logs, bams -> check_log(logs) }
+        .flatMap {  name, logs, bams -> bams }
+    .set { bam_featurecounts }
 }
 
 if(params.aligner == 'salmon'){
@@ -401,7 +401,7 @@ if(params.aligner == 'salmon'){
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file index from salmon_index.collect()
         file trans_gene from salmon_trans_gene.collect()
 
@@ -451,7 +451,7 @@ if(params.aligner == 'hisat2'){
             }
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
@@ -495,7 +495,7 @@ if(params.aligner == 'hisat2'){
         file hisat2_bam
 
         output:
-        file "${hisat2_bam.baseName}.sorted.bam" into bam_count, bam_rseqc, bam_preseq, bam_markduplicates, bam_featurecounts, bam_stringtieFPKM, bam_geneBodyCoverage
+        file "${hisat2_bam.baseName}.sorted.bam" into bam_featurecounts
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -514,25 +514,24 @@ if(params.aligner == 'hisat2'){
 
 if(params.aligner != 'salmon'){
     process featureCounts {
-        tag "${bam_featurecounts.baseName - '.sorted'}"
+        tag "${samplename}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
             saveAs: {filename ->
                 if (filename.indexOf("_biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
-                else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-                else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+                else if (filename.indexOf(".gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+                else if (filename.indexOf(".gene.featureCounts.txt") > 0) "gene_counts/$filename"
                 else "$filename"
             }
 
         input:
-        file bam_featurecounts
+        set val(samplename), file(thebam) from bam_featurecounts
         file gtf from gtf_featureCounts.collect()
         file biotypes_header
 
         output:
-        file "${bam_featurecounts.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-        file "${bam_featurecounts.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
-        file "${bam_featurecounts.baseName}_biotype_counts_mqc.txt" into featureCounts_biotype
-        file '.command.log' into featurecounts_stdout
+        file "${sampleanme}.gene.featureCounts.txt" into featureCounts_to_merge
+        file "${samplename}.gene.featureCounts.txt.summary"
+        file "${thebam.baseName}_biotype_counts_mqc.txt"
 
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
@@ -543,10 +542,10 @@ if(params.aligner != 'salmon'){
             featureCounts_direction = 2
         }
         """
-        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts ${extraparams}
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $bam_featurecounts
-        cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
-        cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${samplename}.gene.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${samplename}.biotype.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
+        cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
+        cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
         """
     }
 
@@ -554,7 +553,8 @@ if(params.aligner != 'salmon'){
  * STEP 9 - Merge featurecounts
  */
     process merge_featureCounts {
-        tag "${input_files[0].baseName - '.sorted'}"
+          // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
+        tag "${input_files[0].baseName - '.gene.featureCounts.txt'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
         input:
