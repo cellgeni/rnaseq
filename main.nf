@@ -344,11 +344,11 @@ if(params.aligner == 'star'){
 
     process star {
         tag "$samplename"
-        publishDir "${params.outdir}/STAR", mode: 'copy',
+        publishDir "${params.outdir}", mode: 'copy',
             saveAs: { filename ->
-                if (filename ==~ /.*\.ReadsPerGene\.out\.tab$/) "${params.outdir}/STARcounts/$filename"
-                else if (filename.indexOf(".bam") == -1) "logs/$filename"
-                else params.saveAlignedIntermediates ? filename : null
+                if (filename ==~ /.*\.ReadsPerGene\.out\.tab/) "STARcounts/$filename"
+                else if (filename.indexOf(".bam") == -1) "STARlogs/$filename"
+                else params.saveAlignedIntermediates ? "STARbams/filename" : null
             }
 
         input:
@@ -358,9 +358,10 @@ if(params.aligner == 'star'){
 
         output:
         set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
-        file "*.out" into alignment_logs
-        file "*SJ.out.tab"
-        file "*Log.out" into star_log
+        file "*.SJ.out.tab"
+        file "*.Log.out"
+        file "*.Log.final.out" into star_log
+        file "*.ReadsPerGene.out"
 
         script:
         file1 = reads[0]
@@ -446,6 +447,7 @@ if(params.aligner == 'hisat2'){
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
+                  // TODO: alignment_logs is a dead-end.
         output:
         file "${samplename}.bam" into hisat2_bam
         file "${samplename}.hisat2_summary.txt" into alignment_logs
