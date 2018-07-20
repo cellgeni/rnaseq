@@ -302,12 +302,14 @@ process crams_to_fastq {
     if [ \$actualsize -ge \$minimumsize ]; then
                               # -O {stdout} -u {no compression}
                               # -N {always append /1 and /2 to the read name}
+                              # -F 0x900 (bit 1, 8, filter secondary and supplementary reads)
       samtools collate    \\
           -O -u           \\
           -@ ${task.cpus} \\
           ${samplename}.cram pfx-${samplename} | \\
       samtools fastq      \\
           -N              \\
+          -F 0x900        \\
           -@ ${task.cpus} \\
           -1 \$f1 -2 \$f2 \\
           -
@@ -361,7 +363,7 @@ if(params.aligner == 'star'){
         file "*.SJ.out.tab"
         file "*.Log.out"
         file "*.Log.final.out" into star_log
-        file "*.ReadsPerGene.out"
+        file "*.ReadsPerGene.out.tab"
 
         script:
         file1 = reads[0]
