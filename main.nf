@@ -300,23 +300,17 @@ process crams_to_fastq {
     f2=${samplename}_2.fastq.gz
 
     if [ \$actualsize -ge \$minimumsize ]; then
-      samtools collate \
-          -O \
-          -@ ${task.cpus} \
-          ${samplename}.cram pfx-${samplename} | \
-      samtools fastq \\
-          -N \\
+                              # -O {stdout} -u {no compression}
+                              # -N {always append /1 and /2 to the read name}
+      samtools collate    \\
+          -O -u           \\
+          -@ ${task.cpus} \\
+          ${samplename}.cram pfx-${samplename} | \\
+      samtools fastq      \\
+          -N              \\
           -@ ${task.cpus} \\
           -1 \$f1 -2 \$f2 \\
           -
-        # This check prompted by cases where only a single file was produced with exit code 0.
-        # Do not know whether the cause was samtools, the file system, the code, or something else.
-        # Normally this check should not be needed; it has not been triggered in a while.
-        # soon to be deleted.
-        if [ ! -s "\$f1" ] || [ ! -s "\$f2" ]; then
-            >&2 echo "\$f1 or \$f2 not created"
-            false
-        fi
     fi
     """
 }
@@ -352,7 +346,7 @@ if(params.aligner == 'star'){
         tag "$samplename"
         publishDir "${params.outdir}/STAR", mode: 'copy',
             saveAs: { filename ->
-                if (filename ==~ /.*.ReadsPerGene.out.tab/) "${params.outdir}/STARcounts/$filename"
+                if (filename ==~ /.*\.ReadsPerGene\.out\.tab$/) "${params.outdir}/STARcounts/$filename"
                 else if (filename.indexOf(".bam") == -1) "logs/$filename"
                 else params.saveAlignedIntermediates ? filename : null
             }
@@ -369,8 +363,6 @@ if(params.aligner == 'star'){
         file "*Log.out" into star_log
 
         script:
-                          // todo prune this unwieldy thing.
-        // prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         file1 = reads[0]
         file2 = reads[1]
         """
@@ -383,7 +375,7 @@ if(params.aligner == 'star'){
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
             --quantMode GeneCounts \\
-            --outFileNamePrefix $samplename
+            --outFileNamePrefix ${samplename}.
         """
     }
     // Filter removes all 'aligned' channels that fail the check
@@ -397,7 +389,7 @@ if(params.aligner == 'salmon'){
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
-        tag "$prefix"
+        tag "$samplename"
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
         input:
@@ -410,7 +402,6 @@ if(params.aligner == 'salmon'){
         file "${prefix}.quant.genes.sf" into salmon_genes
 
         script:
-        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         """
         salmon quant \\
             -i $index \\
@@ -426,8 +417,8 @@ if(params.aligner == 'salmon'){
             -g ${trans_gene} \\
             --useVBOpt \\
             --numBootstraps 100
-        mv quant.sf ${prefix}.quant.sf
-        mv quant.genes.sf ${prefix}.quant.genes.sf
+        mv quant.sf ${samplename}.quant.sf
+        mv quant.genes.sf ${samplename}.quant.genes.sf
         """
 
         // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
@@ -443,7 +434,7 @@ if(params.aligner == 'hisat2'){
     star_log = Channel.from(false)
     salmon_stdout = Channel.from(false)
     process hisat2Align {
-        tag "$prefix"
+        tag "$samplename"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename ->
                 if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
@@ -456,13 +447,12 @@ if(params.aligner == 'hisat2'){
         file alignment_splicesites from alignment_splicesites.collect()
 
         output:
-        file "${prefix}.bam" into hisat2_bam
-        file "${prefix}.hisat2_summary.txt" into alignment_logs
+        file "${samplename}.bam" into hisat2_bam
+        file "${samplename}.hisat2_summary.txt" into alignment_logs
         file '.command.log' into hisat_stdout
 
         script:
         index_base = hs2_indices[0].toString() - ~/.\d.ht2/
-        prefix = reads[0].toString() - ~/(_1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         def rnastrandness = ''
         if (forward_stranded && !unstranded){
             rnastrandness = '--rna-strandness FR'
@@ -480,8 +470,8 @@ if(params.aligner == 'hisat2'){
                 -p ${task.cpus} \\
                 --met-stderr \\
                 --new-summary \\
-                --summary-file ${prefix}.hisat2_summary.txt \\
-                | samtools view -bS -F 4 -F 8 -F 256 - > ${prefix}.bam
+                --summary-file ${samplename}.hisat2_summary.txt \\
+                | samtools view -bS -F 4 -F 8 -F 256 - > ${samplename}.bam
         hisat2 --version
         """
     }
