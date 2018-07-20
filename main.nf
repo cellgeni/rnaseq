@@ -381,7 +381,7 @@ if(params.aligner == 'star'){
     // Filter removes all 'aligned' channels that fail the check
     star_aligned
         .filter { name, logs, bams -> check_log(logs) }
-        .flatMap {  name, logs, bams -> [name, bams] }
+        .map    { name, logs, bams -> [name, bams] }
     .set { bam_featurecounts }
 }
 
