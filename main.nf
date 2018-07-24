@@ -368,6 +368,7 @@ if(params.aligner == 'star'){
         script:
         file1 = reads[0]
         file2 = reads[1]
+                  // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
