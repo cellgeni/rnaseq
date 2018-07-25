@@ -269,7 +269,7 @@ if (params.irods) {
             set val(samplename), file('*.cram') optional true into cram_files
         script:
         """
-        bash -euo irods.sh ${samplename}
+        bash -euo pipefail irods.sh ${samplename}
         """
     }
 } else if (params.fastqdir) {
