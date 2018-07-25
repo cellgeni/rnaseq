@@ -10,6 +10,7 @@ vim: syntax=groovy
  https://github.com/cellgeni/RNAseq
  #### Authors
  Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
+ Stijn van Dongen <svd@sanger.ac.uk>
  Original development by SciLifeLabs
 ----------------------------------------------------------------------------------------
 */
@@ -26,7 +27,6 @@ def helpMessage() {
     nextflow run cellgeni/RNAseq --reads '*_R{1,2}.fastq.gz' --genome GRCh37 -profile farm3
 
     Mandatory arguments:
-      --reads                       Path to input data (must be surrounded with quotes)
       --genome                      Name of iGenomes reference
       -profile                      Hardware config to use. farm3 / farm4 / openstack / docker / aws
 
@@ -41,24 +41,10 @@ def helpMessage() {
       --fasta                       Path to Fasta reference
       --gtf                         Path to GTF file
       --bed12                       Path to bed12 file
-      --downloadFasta               If no STAR / Fasta reference is supplied, a URL can be supplied to download a Fasta file at the start of the pipeline.
-      --downloadGTF                 If no GTF reference is supplied, a URL can be supplied to download a Fasta file at the start of the pipeline.
-      --saveReference               Save the generated reference files the the Results directory.
       --saveAlignedIntermediates    Save the BAM files from the Aligment step  - not done by default
-
-    Trimming options
-      --clip_r1 [int]               Instructs Trim Galore to remove bp from the 5' end of read 1 (or single-end reads)
-      --clip_r2 [int]               Instructs Trim Galore to remove bp from the 5' end of read 2 (paired-end reads only)
-      --three_prime_clip_r1 [int]   Instructs Trim Galore to remove bp from the 3' end of read 1 AFTER adapter/quality trimming has been performed
-      --three_prime_clip_r2 [int]   Instructs Trim Galore to re move bp from the 3' end of read 2 AFTER adapter/quality trimming has been performed
-
-    Presets:
-      --pico                        Sets trimming and standedness settings for the SMARTer Stranded Total RNA-Seq Kit - Pico Input kit. Equivalent to: --forward_stranded --clip_r1 3 --three_prime_clip_r2 3
 
     Other options:
       --outdir                      The output directory where the results will be saved
-      --email                       Set this parameter to your e-mail address to get a summary e-mail with details of the run sent to you when the workflow exits
-      --sampleLevel                 Used to turn of the edgeR MDS and heatmap. Set automatically when running on fewer than 3 samples
       --clusterOptions              Extra SLURM options, used in conjunction with Uppmax.config
       -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
     """.stripIndent()
@@ -85,7 +71,14 @@ if (params.help){
     exit 0
 }
 
+params.samplefile = false
+params.fastqdir = false
+params.irods = false
+params.fcextra = ""
+
 // Configurable variables
+params.scratch = false
+params.runtag  = "NF"                        // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -101,56 +94,24 @@ params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : fa
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.multiqc_config = "$baseDir/conf/multiqc_config.yaml"
 params.splicesites = false
 params.download_hisat2index = false
 params.download_fasta = false
 params.download_gtf = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
-params.saveReference = false
-params.saveTrimmed = false
 params.saveAlignedIntermediates = false
-params.reads = 'cram/*.cram'
 params.outdir = './results'
-params.email = false
-params.plaintext_email = false
-params.mdsplot_header = "$baseDir/assets/mdsplot_header.txt"
-params.heatmap_header = "$baseDir/assets/heatmap_header.txt"
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
-mdsplot_header = file(params.mdsplot_header)
-heatmap_header = file(params.heatmap_header)
 biotypes_header = file(params.biotypes_header)
-multiqc_config = file(params.multiqc_config)
 output_docs = file("$baseDir/docs/output.md")
-params.sampleLevel = false
 
-// Custom trimming options
-params.clip_r1 = 0
-params.clip_r2 = 0
-params.three_prime_clip_r1 = 0
-params.three_prime_clip_r2 = 0
+gene_biotype = params.gtf.matches(".*gencode.*") ? "gene_type" : "gene_biotype"
 
-// Define regular variables so that they can be overwritten
-clip_r1 = params.clip_r1
-clip_r2 = params.clip_r2
-three_prime_clip_r1 = params.three_prime_clip_r1
-three_prime_clip_r2 = params.three_prime_clip_r2
 forward_stranded = params.forward_stranded
 reverse_stranded = params.reverse_stranded
 unstranded = params.unstranded
 
-// Preset trimming options
-params.pico = false
-if (params.pico){
-  clip_r1 = 3
-  clip_r2 = 0
-  three_prime_clip_r1 = 0
-  three_prime_clip_r2 = 3
-  forward_stranded = true
-  reverse_stranded = false
-  unstranded = false
-}
 
 // Choose aligner
 params.aligner = 'star'
@@ -185,7 +146,7 @@ if ( params.dna ){
 }
 if ( params.cdna ){
     f = file(params.cdna)
-    if( !f.exists() ) exit 1, "Fasta file not found: ${params.cdna}"
+    if( !f.exists() ) exit 1, "cdna file not found: ${params.cdna}"
 }
 if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
     exit 1, "No reference genome specified!"
@@ -228,15 +189,11 @@ log.info "         RNASeq pipeline v${version}"
 log.info "========================================="
 def summary = [:]
 summary['Run Name']     = custom_runName ?: workflow.runName
-summary['Reads']        = params.reads
+summary['Sample file']  = params.samplefile
 summary['Data Type']    = 'Paired-End'
 summary['Genome']       = params.genome
-if( params.pico ) summary['Library Prep'] = "SMARTer Stranded Total RNA-Seq Kit - Pico Input"
+summary['Biotype tag']  = gene_biotype
 summary['Strandedness'] = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
-summary['Trim R1'] = clip_r1
-summary['Trim R2'] = clip_r2
-summary["Trim 3' R1"] = three_prime_clip_r1
-summary["Trim 3' R2"] = three_prime_clip_r2
 if(params.aligner == 'star'){
     summary['Aligner'] = "STAR"
     if(params.star_index)          summary['STAR Index']   = params.star_index
@@ -261,8 +218,6 @@ if(params.aligner == 'hisat2') {
 if(params.gtf)                 summary['GTF Annotation']  = params.gtf
 else if(params.download_gtf)   summary['GTF URL']         = params.download_gtf
 if(params.bed12)               summary['BED Annotation']  = params.bed12
-summary['Save Reference'] = params.saveReference ? 'Yes' : 'No'
-summary['Save Trimmed']   = params.saveTrimmed ? 'Yes' : 'No'
 summary['Save Intermeds'] = params.saveAlignedIntermediates ? 'Yes' : 'No'
 summary['Max Memory']     = params.max_memory
 summary['Max CPUs']       = params.max_cpus
@@ -276,7 +231,6 @@ summary['Current path']   = "$PWD"
 summary['Script dir']     = workflow.projectDir
 summary['Config Profile'] = workflow.profile
 if(params.project) summary['UPPMAX Project'] = params.project
-if(params.email) summary['E-mail Address'] = params.email
 log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
@@ -296,173 +250,40 @@ try {
               "============================================================"
 }
 
-/*
- * PREPROCESSING - Build STAR index
- */
-if(params.aligner == 'star' && !params.star_index){
-    process makeSTARindex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
 
-        input:
-        file fasta from Channel.fromPath(params.dna)
-        file gtf from Channel.fromPath(params.gtf)
-
-        output:
-        file "star" into star_index
-
-        script:
-        """
-        mkdir star
-        STAR \\
-            --runMode genomeGenerate \\
-            --runThreadN ${task.cpus} \\
-            --sjdbGTFfile $gtf \\
-            --sjdbOverhang ${params.star_overhang} \\
-            --genomeDir star/ \\
-            --genomeFastaFiles $fasta
-        """
-    }
-}
-
-/*
- * PREPROCESSING - Build Salmon index
- */
-if(params.aligner == 'salmon' && !params.salmon_index){
-    process makeSalmonIndex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from Channel.fromPath(params.cdna)
-
-        output:
-        file "salmon" into salmon_index
-
-        script:
-        """
-        mkdir salmon
-        salmon index \\
-            -t $fasta \\
-            -i salmon
-        """
-    }
-
-    process makeTransGeneMatrix {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from Channel.fromPath(params.cdna)
-
-        output:
-        file "trans_gene.txt" into salmon_trans_gene
-
-        script:
-        """
-        grep '>' $fasta \\
-        | awk '{ print \$1, \$4 }' \\
-        | sed 's/>//' \\
-        | sed 's/gene://' \\
-            > trans_gene.txt
-        """
-    }
-
-}
-
-/*
- * PREPROCESSING - Build HISAT2 splice sites file
- */
-if(params.aligner == 'hisat2' && !params.splicesites){
-    process makeHisatSplicesites {
-        tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file gtf from gtf_makeHisatSplicesites
-
-        output:
-        file "${gtf.baseName}.hisat2_splice_sites.txt" into indexing_splicesites, alignment_splicesites
-
-        script:
-        """
-        hisat2_extract_splice_sites.py $gtf > ${gtf.baseName}.hisat2_splice_sites.txt
-        """
-    }
-}
-/*
- * PREPROCESSING - Build HISAT2 index
- */
-if(params.aligner == 'hisat2' && !params.hisat2_index && !params.download_hisat2index && fasta){
-    process makeHISATindex {
-        tag "$fasta"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file fasta from fasta
-        file indexing_splicesites from indexing_splicesites
-        file gtf from gtf_makeHISATindex
-
-        output:
-        file "${fasta.baseName}.*.ht2" into hs2_indices
-
-        script:
-        if( task.memory == null ){
-            log.info "[HISAT2 index build] Available memory not known - defaulting to 0. Specify process memory requirements to change this."
-            avail_mem = 0
-        } else {
-            log.info "[HISAT2 index build] Available memory: ${task.memory}"
-            avail_mem = task.memory.toGiga()
-        }
-        if( avail_mem > params.hisatBuildMemory ){
-            log.info "[HISAT2 index build] Over ${params.hisatBuildMemory} GB available, so using splice sites and exons in HISAT2 index"
-            extract_exons = "hisat2_extract_exons.py $gtf > ${gtf.baseName}.hisat2_exons.txt"
-            ss = "--ss $indexing_splicesites"
-            exon = "--exon ${gtf.baseName}.hisat2_exons.txt"
-        } else {
-            log.info "[HISAT2 index build] Less than ${params.hisatBuildMemory} GB available, so NOT using splice sites and exons in HISAT2 index."
-            log.info "[HISAT2 index build] Use --hisatBuildMemory [small number] to skip this check."
-            extract_exons = ''
-            ss = ''
-            exon = ''
-        }
-        """
-        $extract_exons
-        hisat2-build -p ${task.cpus} $ss $exon $fasta ${fasta.baseName}.hisat2_index
-        """
-    }
-}
-/*
- * PREPROCESSING - Build BED12 file
- */
-if(!params.bed12){
-    process makeBED12 {
-        tag "$gtf"
-        publishDir path: { params.saveReference ? "${params.outdir}/reference_genome" : params.outdir },
-                   saveAs: { params.saveReference ? it : null }, mode: 'copy'
-
-        input:
-        file gtf from gtf_makeBED12
-
-        output:
-        file "${gtf.baseName}.bed" into bed_rseqc, bed_genebody_coverage
-
-        script: // This script is bundled with the pipeline, in RNAseq/bin/
-        """
-        gtf2bed $gtf > ${gtf.baseName}.bed
-        """
-    }
-}
 
 /*
  * Create a channel for input sample ids
  */
-sample_list = Channel.fromPath('samples.txt')
+sample_list = Channel.fromPath(params.samplefile)
+
+if (params.irods) {
+    process irods {
+        tag "${samplename}"
+
+        maxForks 29 
+
+        input: 
+            val samplename from sample_list.flatMap{ it.readLines() }
+        output: 
+            set val(samplename), file('*.cram') optional true into cram_files
+        script:
+        """
+        irods.sh ${samplename}
+        """
+    }
+} else if (params.fastqdir) {
+} else {
+  exit 1, "Need --fastqdir <dirname> or --irods true option"
+}
+
+
+process crams_to_fastq {
+    tag "${samplename}"
+
+    if (params.scratch) {
+       scratch true
+    }
 
 process irods {
     tag "${sample}"
@@ -470,60 +291,45 @@ process irods {
     maxForks 30
     
     input: 
-        val sample from sample_list.flatMap{ it.readLines() }
+        set val(samplename), file(crams) from cram_files
     output: 
-        set val(sample), file('*.cram') optional true into cram_files
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into fastqs
     script:
     """
-    bash irods.sh ${sample}
+    bash -euo pipefail irods.sh ${sample}
     """
 }
 
 process merge_sample_crams {
     tag "${sample}"
 
-    input: 
-        set val(sample), file(crams) from cram_files
-    output: 
-        file "${sample}.cram" into sample_cram_file
-    script:
+        // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
+        // This is not confirmed entirely just yet.
+        // def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.7 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     """
-    samtools merge -f ${sample}.cram ${crams}
-    """
-}
+    samtools merge -@ ${task.cpus} -f ${samplename}.cram ${crams}
 
-/*
- * STEP 1 - cram to fastq conversion
- */
-
-process cram2fastq {
-    tag "${cram.baseName}"
-
-    input:
-    file cram from sample_cram_file
-
-    output:
-    file "*.fastq" optional true into fastqs
-
-    script:
-    // samtools consumes more than what's available
-    def avail_mem = task.memory == null ? '' : "${ ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
-    """
     # check that the size of the cram file is >0.5Mb
     minimumsize=500000
-    actualsize=\$(wc -c <"${cram}")
+    actualsize=\$(wc -c <"${samplename}.cram")
+
+    f1=${samplename}_1.fastq.gz
+    f2=${samplename}_2.fastq.gz
+
     if [ \$actualsize -ge \$minimumsize ]; then
-        samtools sort \\
-            -n \\
-            -@ ${task.cpus} \\
-            -m ${avail_mem} \\
-            ${cram} | \\
-            samtools fastq \\
-                -N \\
-                -@ ${task.cpus} \\
-                -1 ${cram.baseName}_1.fastq \\
-                -2 ${cram.baseName}_2.fastq \\
-                -
+                              # -O {stdout} -u {no compression}
+                              # -N {always append /1 and /2 to the read name}
+                              # -F 0x900 (bit 1, 8, filter secondary and supplementary reads)
+      samtools collate    \\
+          -O -u           \\
+          -@ ${task.cpus} \\
+          ${samplename}.cram pfx-${samplename} | \\
+      samtools fastq      \\
+          -N              \\
+          -F 0x900        \\
+          -@ ${task.cpus} \\
+          -1 \$f1 -2 \$f2 \\
+          -
     fi
     """
 }
@@ -554,55 +360,61 @@ def check_log(logs) {
 if(params.aligner == 'star'){
     hisat_stdout = Channel.from(false)
     salmon_stdout = Channel.from(false)
+
     process star {
-        tag "$prefix"
-        publishDir "${params.outdir}/STAR", mode: 'copy',
-            saveAs: {filename ->
-                if (filename.indexOf(".bam") == -1) "logs/$filename"
-                else params.saveAlignedIntermediates ? filename : null
+        tag "$samplename"
+        publishDir "${params.outdir}", mode: 'copy',
+            saveAs: { filename ->
+                if (filename ==~ /.*\.ReadsPerGene\.out\.tab/) "STARcounts/$filename"
+                else if (filename.indexOf(".bam") == -1) "STARlogs/$filename"
+                else params.saveAlignedIntermediates ? "STARbams/filename" : null
             }
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file index from star_index.collect()
         file gtf from gtf_star.collect()
 
         output:
-        set file("*Log.final.out"), file ('*.bam') into star_aligned
-        file "*.out" into alignment_logs
-        file "*SJ.out.tab"
-        file "*Log.out" into star_log
+        set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
+        file "*.SJ.out.tab"
+        file "*.Log.out"
+        file "*.Log.final.out" into star_log
+        file "*.ReadsPerGene.out.tab"
 
         script:
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
+        file1 = reads[0]
+        file2 = reads[1]
+                  // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
-            --readFilesIn $reads  \\
+            --readFilesIn $file1 $file2 --readFilesCommand zcat \\
             --runThreadN ${task.cpus} \\
             --twopassMode Basic \\
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
             --runDirPerm All_RWX \\
-            --outFileNamePrefix $prefix
+            --quantMode GeneCounts \\
+            --outFileNamePrefix ${samplename}.
         """
     }
     // Filter removes all 'aligned' channels that fail the check
     star_aligned
-        .filter { logs, bams -> check_log(logs) }
-        .flatMap {  logs, bams -> bams }
-    .into { bam_count; bam_rseqc; bam_preseq; bam_markduplicates; bam_featurecounts; bam_stringtieFPKM; bam_geneBodyCoverage }
+        .filter { name, logs, bams -> check_log(logs) }
+        .map    { name, logs, bams -> [name, bams] }
+    .set { bam_featurecounts }
 }
 
 if(params.aligner == 'salmon'){
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
-        tag "$prefix"
+        tag "$samplename"
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file index from salmon_index.collect()
         file trans_gene from salmon_trans_gene.collect()
 
@@ -611,7 +423,6 @@ if(params.aligner == 'salmon'){
         file "${prefix}.quant.genes.sf" into salmon_genes
 
         script:
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         """
         salmon quant \\
             -i $index \\
@@ -627,9 +438,13 @@ if(params.aligner == 'salmon'){
             -g ${trans_gene} \\
             --useVBOpt \\
             --numBootstraps 100
-        mv quant.sf ${prefix}.quant.sf
-        mv quant.genes.sf ${prefix}.quant.genes.sf
+        mv quant.sf ${samplename}.quant.sf
+        mv quant.genes.sf ${samplename}.quant.genes.sf
         """
+
+        // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
+        // Include the row names so merger can check identity.
+        // The merge step will concatenate the rows and re-transpose to obtain final result.
     }
 }
 
@@ -640,7 +455,7 @@ if(params.aligner == 'hisat2'){
     star_log = Channel.from(false)
     salmon_stdout = Channel.from(false)
     process hisat2Align {
-        tag "$prefix"
+        tag "$samplename"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename ->
                 if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
@@ -648,18 +463,18 @@ if(params.aligner == 'hisat2'){
             }
 
         input:
-        file reads from fastqs
+        set val(samplename), file(reads) from fastqs
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
+                  // TODO: alignment_logs is a dead-end.
         output:
-        file "${prefix}.bam" into hisat2_bam
-        file "${prefix}.hisat2_summary.txt" into alignment_logs
+        file "${samplename}.bam" into hisat2_bam
+        file "${samplename}.hisat2_summary.txt" into alignment_logs
         file '.command.log' into hisat_stdout
 
         script:
         index_base = hs2_indices[0].toString() - ~/.\d.ht2/
-        prefix = reads[0].toString() - ~/(_R1)?(_trimmed)?(_val_1)?(\.fq)?(\.fastq)?(\.gz)?$/
         def rnastrandness = ''
         if (forward_stranded && !unstranded){
             rnastrandness = '--rna-strandness FR'
@@ -677,8 +492,8 @@ if(params.aligner == 'hisat2'){
                 -p ${task.cpus} \\
                 --met-stderr \\
                 --new-summary \\
-                --summary-file ${prefix}.hisat2_summary.txt \\
-                | samtools view -bS -F 4 -F 8 -F 256 - > ${prefix}.bam
+                --summary-file ${samplename}.hisat2_summary.txt \\
+                | samtools view -bS -F 4 -F 8 -F 256 - > ${samplename}.bam
         hisat2 --version
         """
     }
@@ -692,7 +507,7 @@ if(params.aligner == 'hisat2'){
         file hisat2_bam
 
         output:
-        file "${hisat2_bam.baseName}.sorted.bam" into bam_count, bam_rseqc, bam_preseq, bam_markduplicates, bam_featurecounts, bam_stringtieFPKM, bam_geneBodyCoverage
+        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -711,27 +526,30 @@ if(params.aligner == 'hisat2'){
 
 if(params.aligner != 'salmon'){
     process featureCounts {
-        tag "${bam_featurecounts.baseName - '.sorted'}"
+        tag "${samplename}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
             saveAs: {filename ->
                 if (filename.indexOf("_biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
-                else if (filename.indexOf("_gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-                else if (filename.indexOf("_gene.featureCounts.txt") > 0) "gene_counts/$filename"
+                else if (filename.indexOf(".gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+                else if (filename.indexOf(".gene.featureCounts.txt") > 0) "gene_counts/$filename"
                 else "$filename"
             }
 
         input:
-        file bam_featurecounts
+        set val(samplename), file(thebam) from bam_featurecounts
         file gtf from gtf_featureCounts.collect()
         file biotypes_header
 
         output:
-        file "${bam_featurecounts.baseName}_gene.featureCounts.txt" into geneCounts, featureCounts_to_merge
-        file "${bam_featurecounts.baseName}_gene.featureCounts.txt.summary" into featureCounts_logs
-        file "${bam_featurecounts.baseName}_biotype_counts_mqc.txt" into featureCounts_biotype
-        file '.command.log' into featurecounts_stdout
+        // file "${sampleanme}.gene.featureCounts.txt" into featureCounts_to_merge
+        // file "${samplename}.gene.featureCounts.txt.summary"
+        // file "${samplename}.biotype_counts_mqc.txt"
+        file "*.gene.featureCounts.txt" into featureCounts_to_merge
+        file "*.gene.featureCounts.txt.summary"
+        file "*.biotype_counts_mqc.txt"
 
         script:
+        def extraparams = params.fcextra.toString() - ~/^dummy/
         def featureCounts_direction = 0
         if (forward_stranded && !unstranded) {
             featureCounts_direction = 1
@@ -739,10 +557,10 @@ if(params.aligner != 'salmon'){
             featureCounts_direction = 2
         }
         """
-        featureCounts -a $gtf -g gene_id -o ${bam_featurecounts.baseName}_gene.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-        featureCounts -a $gtf -g gene_biotype -o ${bam_featurecounts.baseName}_biotype.featureCounts.txt -p -s $featureCounts_direction $bam_featurecounts
-        cut -f 1,7 ${bam_featurecounts.baseName}_biotype.featureCounts.txt | tail -n 7 > tmp_file
-        cat $biotypes_header tmp_file >> ${bam_featurecounts.baseName}_biotype_counts_mqc.txt
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${samplename}.gene.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${samplename}.biotype.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
+        cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
+        cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
         """
     }
 
@@ -750,18 +568,19 @@ if(params.aligner != 'salmon'){
  * STEP 9 - Merge featurecounts
  */
     process merge_featureCounts {
-        tag "${input_files[0].baseName - '.sorted'}"
+          // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
+        tag "${input_files[0].baseName - '.gene.featureCounts.txt'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
         input:
         file input_files from featureCounts_to_merge.collect()
 
         output:
-        file 'merged_gene_counts.txt'
+        file '*-genecounts.txt'
 
         script:
         """
-        merge_featurecounts.py -o merged_gene_counts.txt -i $input_files
+        merge_featurecounts.py -o ${params.runtag}-genecounts.txt -i $input_files
         """
     }
 }
@@ -783,6 +602,13 @@ if(params.aligner == 'salmon'){
         """
         merge_salmon.R $input_trans trans
         merge_salmon.R $input_genes genes
+
+        #  Todo: need the utils submodule for this (to see merge-files-col.sh)
+        #  Additionally this uses the micans/reaper 'transpose' program.
+        #  merge-files-col.sh -b all   -c 4 -E TPM      -y _1.quant.sf       -T -L $input_trans
+        #  merge-files-col.sh -b all   -c 5 -E NumReads -y _1.quant.sf       -T -L $input_trans
+        #  merge-files-col.sh -b genes -c 4 -E TPM      -y _1.quant.genes.sf -T -L Sinput_genes
+        #  merge-files-col.sh -b genes -c 5 -E NumReads -y _1.quant.genes.sf -T -L Sinput_genes
         """
     }
 
