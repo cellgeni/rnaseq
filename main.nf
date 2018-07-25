@@ -269,7 +269,7 @@ if (params.irods) {
             set val(samplename), file('*.cram') optional true into cram_files
         script:
         """
-        irods.sh ${samplename}
+        bash -euo irods.sh ${samplename}
         """
     }
 } else if (params.fastqdir) {
@@ -285,23 +285,11 @@ process crams_to_fastq {
        scratch true
     }
 
-process irods {
-    tag "${sample}"
-
-    maxForks 30
-    
     input: 
         set val(samplename), file(crams) from cram_files
     output: 
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into fastqs
     script:
-    """
-    bash -euo pipefail irods.sh ${sample}
-    """
-}
-
-process merge_sample_crams {
-    tag "${sample}"
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
         // This is not confirmed entirely just yet.
