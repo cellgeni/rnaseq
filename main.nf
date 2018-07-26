@@ -72,9 +72,9 @@ if (params.help){
 }
 
 params.samplefile = false
+params.studyid = -1
 params.fastqdir = false
-params.irods = false
-params.fcextra = ""
+params.fcextra = ""                          // feature counts extra parameters; currently for testing
 
 // Configurable variables
 params.scratch = false
@@ -257,7 +257,7 @@ try {
  */
 sample_list = Channel.fromPath(params.samplefile)
 
-if (params.irods) {
+if (params.studyid > 0) {
     process irods {
         tag "${samplename}"
 
@@ -269,12 +269,12 @@ if (params.irods) {
             set val(samplename), file('*.cram') optional true into cram_files
         script:
         """
-        bash -euo pipefail irods.sh ${samplename}
+        bash -euo pipefail irods.sh ${params.studyid} ${samplename}
         """
     }
 } else if (params.fastqdir) {
 } else {
-  exit 1, "Need --fastqdir <dirname> or --irods true option"
+  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
 }
 
 
