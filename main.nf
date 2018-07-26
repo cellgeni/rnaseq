@@ -279,9 +279,6 @@ if (params.studyid > 0) {
 
 
 process crams_to_fastq {
-    
-    label 'not_irods'
-
     tag "${samplename}"
 
     if (params.scratch) {
@@ -353,9 +350,6 @@ if(params.aligner == 'star'){
     salmon_stdout = Channel.from(false)
 
     process star {
-
-        label 'not_irods'
-
         tag "$samplename"
         publishDir "${params.outdir}", mode: 'copy',
             saveAs: { filename ->
@@ -404,9 +398,6 @@ if(params.aligner == 'salmon'){
     hisat_stdout = Channel.from(false)
     star_log = Channel.from(false)
     process salmon {
-
-        label 'not_irods'
-
         tag "$samplename"
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
@@ -452,9 +443,6 @@ if(params.aligner == 'hisat2'){
     star_log = Channel.from(false)
     salmon_stdout = Channel.from(false)
     process hisat2Align {
-
-        label 'not_irods'
-
         tag "$samplename"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename ->
@@ -499,9 +487,6 @@ if(params.aligner == 'hisat2'){
     }
 
     process hisat2_sortOutput {
-
-        label 'not_irods'
-
         tag "${hisat2_bam.baseName}"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename -> params.saveAlignedIntermediates ? "aligned_sorted/$filename" : null }
@@ -529,9 +514,6 @@ if(params.aligner == 'hisat2'){
 
 if(params.aligner != 'salmon'){
     process featureCounts {
-
-        label 'not_irods'
-
         tag "${samplename}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
             saveAs: {filename ->
@@ -574,9 +556,6 @@ if(params.aligner != 'salmon'){
  * STEP 9 - Merge featurecounts
  */
     process merge_featureCounts {
-
-        label 'not_irods'
-
           // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
         tag "${input_files[0].baseName - '.gene.featureCounts.txt'}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
@@ -597,9 +576,6 @@ if(params.aligner != 'salmon'){
 if(params.aligner == 'salmon'){
     
     process mergeSalmonCounts {
-
-        label 'not_irods'
-
         tag "${input_trans[0].baseName - '.quant.sf'}"
         publishDir "${params.outdir}/mergedCounts", mode: 'copy'
 
