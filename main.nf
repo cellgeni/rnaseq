@@ -74,6 +74,7 @@ if (params.help){
 params.samplefile = false
 params.studyid = -1
 params.fastqdir = false
+params.outdir = './results'
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
 
 // Configurable variables
@@ -100,7 +101,6 @@ params.download_fasta = false
 params.download_gtf = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
 params.saveAlignedIntermediates = false
-params.outdir = './results'
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
 biotypes_header = file(params.biotypes_header)
