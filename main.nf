@@ -568,9 +568,9 @@ if(params.aligner != 'salmon'){
 
         script:
         """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
-          --rm-suffix Aligned.sortedByCoord.out_gene.featureCounts.txt    \|
-          -c -1 --skip-comments --header                                  \|
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+          --rm-suffix Aligned.sortedByCoord.out_gene.featureCounts.txt    \\
+          -c -1 --skip-comments --header                                  \\
           -o ${params.runtag}-fc-genecounts.txt -i $input_files
         """
     }
@@ -591,13 +591,13 @@ if(params.aligner == 'salmon'){
 
         script:
         """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
-          --rm-suffix _1.quant.genes.sf                                   \|
-          -c -1 --skip-comments --header                                  \|
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+          --rm-suffix _1.quant.genes.sf                                   \\
+          -c -1 --skip-comments --header                                  \\
           -o ${params.runtag}-salmon-genecounts.txt -i $input_genes
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
-          --rm-suffix _1.quant.genes.sf                                   \|
-          -c -1 --skip-comments --header                                  \|
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+          --rm-suffix _1.quant.genes.sf                                   \\
+          -c -1 --skip-comments --header                                  \\
           -o ${params.runtag}-salmon-transcounts.txt -i $input_trans
         """
     }
