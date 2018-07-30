@@ -568,7 +568,7 @@ if(params.aligner != 'salmon'){
 
         script:
         """
-        python3 merge_featurecounts.py -o ${params.runtag}-genecounts.txt -i $input_files
+        python3 $workflow.projectDir/bin/merge_featurecounts.py -o ${params.runtag}-genecounts.txt -i $input_files
         """
     }
 }
