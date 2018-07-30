@@ -564,11 +564,14 @@ if(params.aligner != 'salmon'){
         file input_files from featureCounts_to_merge.collect()
 
         output:
-        file '*-genecounts.txt'
+        file '*-fc-genecounts.txt'
 
         script:
         """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py -o ${params.runtag}-genecounts.txt -i $input_files
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
+          --rm-suffix Aligned.sortedByCoord.out_gene.featureCounts.txt    \|
+          -c -1 --skip-comments --header                                  \|
+          -o ${params.runtag}-fc-genecounts.txt -i $input_files
         """
     }
 }
@@ -576,7 +579,7 @@ if(params.aligner != 'salmon'){
 if(params.aligner == 'salmon'){
     
     process mergeSalmonCounts {
-        tag "${input_trans[0].baseName - '.quant.sf'}"
+        tag "${input_trans[0].baseName - '_1.quant.sf'}"
         publishDir "${params.outdir}/mergedCounts", mode: 'copy'
 
         input:
@@ -584,19 +587,18 @@ if(params.aligner == 'salmon'){
         file input_genes from salmon_genes.collect()
 
         output:
-        file 'merged_*'
+        file '*counts.txt'
 
         script:
         """
-        merge_salmon.R $input_trans trans
-        merge_salmon.R $input_genes genes
-
-        #  Todo: need the utils submodule for this (to see merge-files-col.sh)
-        #  Additionally this uses the micans/reaper 'transpose' program.
-        #  merge-files-col.sh -b all   -c 4 -E TPM      -y _1.quant.sf       -T -L $input_trans
-        #  merge-files-col.sh -b all   -c 5 -E NumReads -y _1.quant.sf       -T -L $input_trans
-        #  merge-files-col.sh -b genes -c 4 -E TPM      -y _1.quant.genes.sf -T -L Sinput_genes
-        #  merge-files-col.sh -b genes -c 5 -E NumReads -y _1.quant.genes.sf -T -L Sinput_genes
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
+          --rm-suffix _1.quant.genes.sf                                   \|
+          -c -1 --skip-comments --header                                  \|
+          -o ${params.runtag}-salmon-genecounts.txt -i $input_genes
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \|
+          --rm-suffix _1.quant.genes.sf                                   \|
+          -c -1 --skip-comments --header                                  \|
+          -o ${params.runtag}-salmon-transcounts.txt -i $input_trans
         """
     }
 
