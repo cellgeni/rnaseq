@@ -569,7 +569,7 @@ if(params.aligner != 'salmon'){
         script:
         """
         python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          --rm-suffix Aligned.sortedByCoord.out_gene.featureCounts.txt    \\
+          --rm-suffix .gene.featureCounts.txt                             \\
           -c -1 --skip-comments --header                                  \\
           -o ${params.runtag}-fc-genecounts.txt -i $input_files
         """
