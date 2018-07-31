@@ -273,6 +273,26 @@ if (params.studyid > 0) {
         """
     }
 } else if (params.fastqdir) {
+    cram_files = Channel.empty()
+    process get_fastq_files {
+        tag "${samplename}"
+
+        input:
+            val samplename from sample_list.flatMap{ it.readLines() }
+        output:
+            set val(samplename), file("${samplename}_?.*") optional true into fastqs_dir
+        script:
+        """
+        list=( \$(ls ${params.fastqdir}/${samplename}_[12].*) )
+        if [[ 2 == \${#list[@]} ]]; then
+          ln -s \${list[0]} .
+          ln -s \${list[1]} .
+        else
+          echo "Count mismatch sample ${samplename} found \${list[@]}"
+          false
+        fi
+        """
+    }
 } else {
   exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
 }
@@ -359,7 +379,7 @@ if(params.aligner == 'star'){
             }
 
         input:
-        set val(samplename), file(reads) from fastqs
+        set val(samplename), file(reads) from fastqs.mix(fastqs_dir)
         file index from star_index.collect()
         file gtf from gtf_star.collect()
 
