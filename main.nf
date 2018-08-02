@@ -258,6 +258,7 @@ try {
 sample_list = Channel.fromPath(params.samplefile)
 
 if (params.studyid > 0) {
+    ch_fastqs_dir = Channel.empty()
     process irods {
         tag "${samplename}"
 
@@ -266,24 +267,24 @@ if (params.studyid > 0) {
         input: 
             val samplename from sample_list.flatMap{ it.readLines() }
         output: 
-            set val(samplename), file('*.cram') optional true into cram_files
+            set val(samplename), file('*.cram') optional true into ch_cram_files
         script:
         """
         bash -euo pipefail irods.sh ${params.studyid} ${samplename}
         """
     }
 } else if (params.fastqdir) {
-    cram_files = Channel.empty()
+    ch_cram_files = Channel.empty()
     process get_fastq_files {
         tag "${samplename}"
 
         input:
             val samplename from sample_list.flatMap{ it.readLines() }
         output:
-            set val(samplename), file("${samplename}_?.*") optional true into fastqs_dir
+            set val(samplename), file("${samplename}_?.*") optional true into ch_fastqs_dir
         script:
         """
-        list=( \$(ls ${params.fastqdir}/${samplename}_[12].*) )
+        list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.*) )
         if [[ 2 == \${#list[@]} ]]; then
           ln -s \${list[0]} .
           ln -s \${list[1]} .
@@ -306,9 +307,9 @@ process crams_to_fastq {
     }
 
     input: 
-        set val(samplename), file(crams) from cram_files
+        set val(samplename), file(crams) from ch_cram_files
     output: 
-        set val(samplename), file("${samplename}_?.fastq.gz") optional true into fastqs
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_cram
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
@@ -341,6 +342,12 @@ process crams_to_fastq {
     fi
     """
 }
+
+
+ch_fastqs_cram
+  .mix(ch_fastqs_dir)
+  .set{ ch_reads }
+
 
 /*
  * STEP 3 - align with STAR
@@ -379,7 +386,7 @@ if(params.aligner == 'star'){
             }
 
         input:
-        set val(samplename), file(reads) from fastqs.mix(fastqs_dir)
+        set val(samplename), file(reads) from ch_reads
         file index from star_index.collect()
         file gtf from gtf_star.collect()
 
@@ -422,7 +429,7 @@ if(params.aligner == 'salmon'){
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
         input:
-        set val(samplename), file(reads) from fastqs
+        set val(samplename), file(reads) from ch_reads
         file index from salmon_index.collect()
         file trans_gene from salmon_trans_gene.collect()
 
@@ -471,7 +478,7 @@ if(params.aligner == 'hisat2'){
             }
 
         input:
-        set val(samplename), file(reads) from fastqs
+        set val(samplename), file(reads) from ch_reads
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
