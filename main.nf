@@ -76,6 +76,7 @@ params.studyid = -1
 params.fastqdir = false
 params.outdir = './results'
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
+params.singleend = true
 
 // Configurable variables
 params.scratch = false
@@ -275,24 +276,46 @@ if (params.studyid > 0) {
     }
 } else if (params.fastqdir) {
     ch_cram_files = Channel.empty()
-    process get_fastq_files {
-        tag "${samplename}"
+    if (params.singleend) {
+      process get_fastq_files_single {
+          tag "$samplename"
 
-        input:
-            val samplename from sample_list.flatMap{ it.readLines() }
-        output:
-            set val(samplename), file("${samplename}_?.*") optional true into ch_fastqs_dir
-        script:
-        """
-        list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.*) )
-        if [[ 2 == \${#list[@]} ]]; then
-          ln -s \${list[0]} .
-          ln -s \${list[1]} .
-        else
-          echo "Count mismatch sample ${samplename} found \${list[@]}"
-          false
-        fi
-        """
+          input:
+              val samplename from sample_list.flatMap{ it.readLines() }
+          output:
+              set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dir
+          script:
+          """
+          name=${params.fastqdir}/${samplename}.fastq.gz
+          if [[ ! -e \$name ]]; then
+            echo "Count file \$name not found"
+            false
+          else
+            ln -s \$name .
+          fi
+          """
+      }
+    }
+    else {
+      process get_fastq_files {
+          tag "${samplename}"
+
+          input:
+              val samplename from sample_list.flatMap{ it.readLines() }
+          output:
+              set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dir
+          script:
+          """
+          list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
+          if [[ 2 == \${#list[@]} ]]; then
+            ln -s \${list[0]} .
+            ln -s \${list[1]} .
+          else
+            echo "Count mismatch sample ${samplename} found (\${list[@]})"
+            false
+          fi
+          """
+      }
     }
 } else {
   exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
@@ -398,13 +421,11 @@ if(params.aligner == 'star'){
         file "*.ReadsPerGene.out.tab"
 
         script:
-        file1 = reads[0]
-        file2 = reads[1]
                   // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
-            --readFilesIn $file1 $file2 --readFilesCommand zcat \\
+            --readFilesIn $reads --readFilesCommand zcat \\
             --runThreadN ${task.cpus} \\
             --twopassMode Basic \\
             --outWigType bedGraph \\
@@ -566,14 +587,15 @@ if(params.aligner != 'salmon'){
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
         def featureCounts_direction = 0
+        def pairedend = params.singleend ? "" : "-p"
         if (forward_stranded && !unstranded) {
             featureCounts_direction = 1
         } else if (reverse_stranded && !unstranded){
             featureCounts_direction = 2
         }
         """
-        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${samplename}.gene.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${samplename}.biotype.featureCounts.txt -p -s $featureCounts_direction ${extraparams} $thebam
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${samplename}.gene.featureCounts.txt $pairedend -s $featureCounts_direction ${extraparams} $thebam
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${samplename}.biotype.featureCounts.txt $pairedend -s $featureCounts_direction ${extraparams} $thebam
         cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
         """
@@ -584,7 +606,7 @@ if(params.aligner != 'salmon'){
  */
     process merge_featureCounts {
           // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
-        tag "${input_files[0].baseName - '.gene.featureCounts.txt'}"
+        tag "$outputname"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
         input:
@@ -594,11 +616,12 @@ if(params.aligner != 'salmon'){
         file '*-fc-genecounts.txt'
 
         script:
+        def outputname = "${params.runtag}-fc-genecounts.txt"
         """
         python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
           --rm-suffix Aligned.sortedByCoord.out_gene.featureCounts.txt    \\
           -c -1 --skip-comments --header                                  \\
-          -o ${params.runtag}-fc-genecounts.txt -i $input_files
+          -o $outputname -i $input_files
         """
     }
 }
