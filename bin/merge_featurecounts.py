@@ -16,8 +16,11 @@ def merge_featureCounts(dest_dir,out_file,input_files):
    table_dict=defaultdict(dict)
    sample_names=[]
    genes=set()
+   num=1
+
    for input_file in input_files:
-       logger.info("Reading from {}".format(input_file))
+       logger.info("{:>5} Reading from {}".format(num, input_file))
+       num += 1
        sample_name=os.path.basename(input_file)
        if (len(thesuffix)):
            sample_name = sample_name.replace(thesuffix,"")
