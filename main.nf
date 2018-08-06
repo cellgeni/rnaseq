@@ -76,7 +76,7 @@ params.studyid = -1
 params.fastqdir = false
 params.outdir = './results'
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
-params.singleend = true
+params.singleend = false
 
 // Configurable variables
 params.scratch = false
