@@ -271,7 +271,7 @@ if (params.studyid > 0) {
             set val(samplename), file('*.cram') optional true into ch_cram_files
         script:
         """
-        bash -euo pipefail irods.sh ${params.studyid} ${samplename}
+        bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}
         """
     }
 } else if (params.fastqdir) {
