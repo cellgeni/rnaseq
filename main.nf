@@ -263,8 +263,6 @@ if (params.studyid > 0) {
     process irods {
         tag "${samplename}"
 
-        maxForks 29 
-
         input: 
             val samplename from sample_list.flatMap{ it.readLines() }
         output: 
