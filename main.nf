@@ -420,6 +420,7 @@ if(params.aligner == 'star'){
 
         script:
                   // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
+                  // --outSAMunmapped Within: In case someone wants the BAM files.
         """
         STAR --genomeDir $index \\
             --sjdbGTFfile $gtf \\
@@ -428,6 +429,7 @@ if(params.aligner == 'star'){
             --twopassMode Basic \\
             --outWigType bedGraph \\
             --outSAMtype BAM SortedByCoordinate \\
+            --outSAMunmapped Within \\
             --runDirPerm All_RWX \\
             --quantMode GeneCounts \\
             --outFileNamePrefix ${samplename}.
@@ -592,8 +594,14 @@ if(params.aligner != 'salmon'){
             featureCounts_direction = 2
         }
         """
-        featureCounts -T ${task.cpus} -a $gtf -g gene_id -o ${samplename}.gene.featureCounts.txt $pairedend -s $featureCounts_direction ${extraparams} $thebam
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype} -o ${samplename}.biotype.featureCounts.txt $pairedend -s $featureCounts_direction ${extraparams} $thebam
+        featureCounts -T ${task.cpus} -a $gtf -g gene_id          \\
+          -o ${samplename}.gene.featureCounts.txt $pairedend      \\
+          -s $featureCounts_direction ${extraparams} $thebam
+
+        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype}  \\
+          -o ${samplename}.biotype.featureCounts.txt $pairedend   \\
+          -s $featureCounts_direction ${extraparams} $thebam
+
         cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
         """
