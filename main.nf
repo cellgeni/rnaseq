@@ -565,7 +565,7 @@ if(params.aligner != 'salmon'){
         tag "${samplename}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
             saveAs: {filename ->
-                if (filename.indexOf("_biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
+                if (filename.indexOf(".biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
                 else if (filename.indexOf(".gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
                 else if (filename.indexOf(".gene.featureCounts.txt") > 0) "gene_counts/$filename"
                 else "$filename"
