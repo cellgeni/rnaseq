@@ -86,6 +86,7 @@ params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
 params.skip_qc = false
+params.mito_name = 'MT'
 params.skip_multiqc = false
 params.skip_fastqc = false
 params.unstranded = false
@@ -459,7 +460,7 @@ if(params.aligner == 'star'){
     star_aligned
         .filter { name, logs, bams -> check_log(logs) }
         .map    { name, logs, bams -> [name, bams] }
-    .set { bam_featurecounts }
+    .into { bam_featurecounts; bam_mapsummary }
 }
 
 if(params.aligner == 'salmon'){
@@ -559,7 +560,7 @@ if(params.aligner == 'hisat2'){
         file hisat2_bam
 
         output:
-        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts
+        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts, bam_mapsummary
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -619,9 +620,25 @@ if(params.aligner != 'salmon') {
         """
     }
 
-/*
- * STEP 9 - Merge featurecounts
- */
+    process bam_mapsummary {
+        tag "${samplename}"
+        publishDir "${params.outdir}/mapsummary", mode: 'copy'
+
+        input:
+        set val(samplename), file(thebam) from bam_mapsummary
+
+        output:
+        file "*.mapsummary.txt"
+
+        script:
+        def mito_name = params.mito_name
+        """
+        samtools index $thebam
+        samtools idxstats $thebam > ${samplename}.idxstats
+        python2 $baseDir/bin/mito.py -m ${mito_name} -t ${samplename}.idxstats > ${samplename}.mapsummary.txt
+        """
+    }
+
     process merge_featureCounts {
           // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
         tag "$outputname"
