@@ -41,7 +41,6 @@ def helpMessage() {
       --fasta                       Path to Fasta reference
       --gtf                         Path to GTF file
       --bed12                       Path to bed12 file
-      --saveAlignedIntermediates    Save the BAM files from the Aligment step  - not done by default
 
     Other options:
       --outdir                      The output directory where the results will be saved
@@ -86,6 +85,10 @@ params.project = false
 params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
+params.skip_qc = false
+params.mito_name = 'MT'
+params.skip_multiqc = false
+params.skip_fastqc = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
@@ -101,7 +104,6 @@ params.download_hisat2index = false
 params.download_fasta = false
 params.download_gtf = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
-params.saveAlignedIntermediates = false
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
 biotypes_header = file(params.biotypes_header)
@@ -219,7 +221,6 @@ if(params.aligner == 'hisat2') {
 if(params.gtf)                 summary['GTF Annotation']  = params.gtf
 else if(params.download_gtf)   summary['GTF URL']         = params.download_gtf
 if(params.bed12)               summary['BED Annotation']  = params.bed12
-summary['Save Intermeds'] = params.saveAlignedIntermediates ? 'Yes' : 'No'
 summary['Max Memory']     = params.max_memory
 summary['Max CPUs']       = params.max_cpus
 summary['Max Time']       = params.max_time
@@ -367,7 +368,28 @@ process crams_to_fastq {
 
 ch_fastqs_cram
   .mix(ch_fastqs_dir)
-  .set{ ch_reads }
+  .into{ ch_reads; ch_fastqc }
+
+
+process fastqc {
+    tag "$samplename"
+    publishDir "${params.outdir}/fastqc", mode: 'copy',
+        saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
+
+    when:
+    !params.skip_qc && !params.skip_fastqc
+
+    input:
+    set val(samplename), file(reads) from ch_fastqc
+
+    output:
+    file "*_fastqc.{zip,html}" into ch_fastqc_results
+
+    script:
+    """
+    fastqc -t ${task.cpus} -q $reads
+    """
+}
 
 
 /*
@@ -403,7 +425,7 @@ if(params.aligner == 'star'){
             saveAs: { filename ->
                 if (filename ==~ /.*\.ReadsPerGene\.out\.tab/) "STARcounts/$filename"
                 else if (filename.indexOf(".bam") == -1) "STARlogs/$filename"
-                else params.saveAlignedIntermediates ? "STARbams/filename" : null
+                else null
             }
 
         input:
@@ -414,8 +436,7 @@ if(params.aligner == 'star'){
         output:
         set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
         file "*.SJ.out.tab"
-        file "*.Log.out"
-        file "*.Log.final.out" into star_log
+        file "*.out" into ch_alignment_logs
         file "*.ReadsPerGene.out.tab"
 
         script:
@@ -439,12 +460,12 @@ if(params.aligner == 'star'){
     star_aligned
         .filter { name, logs, bams -> check_log(logs) }
         .map    { name, logs, bams -> [name, bams] }
-    .set { bam_featurecounts }
+    .into { bam_featurecounts; bam_mapsummary }
 }
 
 if(params.aligner == 'salmon'){
     hisat_stdout = Channel.from(false)
-    star_log = Channel.from(false)
+    ch_alignment_logs = Channel.from(false)
     process salmon {
         tag "$samplename"
         publishDir "${params.outdir}/Salmon", mode: 'copy'
@@ -488,14 +509,13 @@ if(params.aligner == 'salmon'){
  * STEP 3 - align with HISAT2
  */
 if(params.aligner == 'hisat2'){
-    star_log = Channel.from(false)
     salmon_stdout = Channel.from(false)
     process hisat2Align {
         tag "$samplename"
         publishDir "${params.outdir}/HISAT2", mode: 'copy',
             saveAs: {filename ->
                 if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
-                else params.saveAlignedIntermediates ? filename : null
+                else null
             }
 
         input:
@@ -503,10 +523,9 @@ if(params.aligner == 'hisat2'){
         file hs2_indices from hs2_indices.collect()
         file alignment_splicesites from alignment_splicesites.collect()
 
-                  // TODO: alignment_logs is a dead-end.
         output:
         file "${samplename}.bam" into hisat2_bam
-        file "${samplename}.hisat2_summary.txt" into alignment_logs
+        file "${samplename}.hisat2_summary.txt" into ch_alignment_logs
         file '.command.log' into hisat_stdout
 
         script:
@@ -536,14 +555,12 @@ if(params.aligner == 'hisat2'){
 
     process hisat2_sortOutput {
         tag "${hisat2_bam.baseName}"
-        publishDir "${params.outdir}/HISAT2", mode: 'copy',
-            saveAs: {filename -> params.saveAlignedIntermediates ? "aligned_sorted/$filename" : null }
 
         input:
         file hisat2_bam
 
         output:
-        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts
+        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts, bam_mapsummary
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -556,11 +573,8 @@ if(params.aligner == 'hisat2'){
     }
 }
 
-/*
- * STEP 8 Feature counts
- */
 
-if(params.aligner != 'salmon'){
+if(params.aligner != 'salmon') {
     process featureCounts {
         tag "${samplename}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy',
@@ -577,12 +591,9 @@ if(params.aligner != 'salmon'){
         file biotypes_header
 
         output:
-        // file "${sampleanme}.gene.featureCounts.txt" into featureCounts_to_merge
-        // file "${samplename}.gene.featureCounts.txt.summary"
-        // file "${samplename}.biotype_counts_mqc.txt"
         file "*.gene.featureCounts.txt" into featureCounts_to_merge
         file "*.gene.featureCounts.txt.summary"
-        file "*.biotype_counts_mqc.txt"
+        file "*.biotype_counts*mqc.{txt,tsv}" into ch_fc_biotype      // captures _counts_gs_mqc.tsv as well
 
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
@@ -604,12 +615,30 @@ if(params.aligner != 'salmon'){
 
         cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
         cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
+        # mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
+        # TODO this is pbb a multiqc script, activate when ready.
         """
     }
 
-/*
- * STEP 9 - Merge featurecounts
- */
+    process bam_mapsummary {
+        tag "${samplename}"
+        publishDir "${params.outdir}/mapsummary", mode: 'copy'
+
+        input:
+        set val(samplename), file(thebam) from bam_mapsummary
+
+        output:
+        file "*.mapsummary.txt"
+
+        script:
+        def mito_name = params.mito_name
+        """
+        samtools index $thebam
+        samtools idxstats $thebam > ${samplename}.idxstats
+        python2 $baseDir/bin/mito.py -m ${mito_name} -t ${samplename}.idxstats > ${samplename}.mapsummary.txt
+        """
+    }
+
     process merge_featureCounts {
           // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
         tag "$outputname"
@@ -659,3 +688,43 @@ if(params.aligner == 'salmon'){
     }
 
 }
+
+
+process multiqc {
+    publishDir "${params.outdir}/MultiQC", mode: 'copy'
+
+    when:
+    !params.skip_multiqc
+
+    input:
+    file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
+    file ('featureCounts_biotype/*') from ch_fc_biotype.collect()
+    file ('alignment/*') from ch_alignment_logs.collect()
+/*
+    file ('trimgalore/*') from trimgalore_results.collect()
+    file ('rseqc/*') from rseqc_results.collect().ifEmpty([])
+    file ('rseqc/*') from genebody_coverage_results.collect().ifEmpty([])
+    file ('preseq/*') from preseq_results.collect().ifEmpty([])
+    file ('dupradar/*') from dupradar_results.collect().ifEmpty([])
+    file ('featureCounts/*') from featureCounts_logs.collect()
+    file ('stringtie/stringtie_log*') from stringtie_log.collect()
+    file ('sample_correlation_results/*') from sample_correlation_results.collect().ifEmpty([]) // If the Edge-R is not run create an Empty
+    file ('software_versions/*') from software_versions_yaml.collect()
+    file ('workflow_summary/*') from workflow_summary_yaml.collect()
+*/
+    output:
+    file "*multiqc_report.html" into multiqc_report
+    file "*_data"
+
+    script:
+    rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
+    rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
+    """
+    # multiqc . -f $rtitle $rfilename \\
+    #     -m custom_content -m picard -m preseq -m rseqc -m featureCounts -m hisat2 -m star -m cutadapt -m fastqc
+    multiqc . -f $rtitle $rfilename \\
+        -m custom_content -m featureCounts -m star -m fastqc
+    """
+}
+
+
