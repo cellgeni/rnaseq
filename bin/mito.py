@@ -46,6 +46,12 @@ sum_unmapped    = df[3][id_unmapped]
 sum_mito        = df[3][id_mito]
 sum_reads       = sum_mapped + sum_unmapped
 
+                  # Use a single read as an out-of-bound count.
+                  # This is philosophically questionable, but in practice practical.
+if sum_reads == 0:
+  sum_reads = 1
+  sum_unmapped = 1
+
 thedict = collections.OrderedDict(
 [("total"       ,   sum_reads)
 ,("mapped"      ,   sum_mapped)
