@@ -622,7 +622,6 @@ if(params.aligner != 'salmon') {
 
     process indexbam {
         tag "${samplename}"
-        publishDir "${params.outdir}/mapsummary", mode: 'copy'
 
         input:
         set val(samplename), file(thebam) from ch_indexbam
