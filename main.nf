@@ -628,14 +628,14 @@ if(params.aligner != 'salmon') {
         set val(samplename), file(thebam) from bam_mapsummary
 
         output:
-        file "*.mapsummary_mqc.txt" into ch_mapsummary_results
+        file "*_mqc.txt" into ch_mapsummary_results
 
         script:
         def mito_name = params.mito_name
         """
         samtools index $thebam
         samtools idxstats $thebam > ${samplename}.idxstats
-        python2 $baseDir/bin/mito.py -m ${mito_name} -t ${samplename}.idxstats > ${samplename}.mapsummary_mqc.txt
+        python2 $baseDir/bin/mito.py -m ${mito_name} -t ${samplename}.idxstats > ${samplename}_mqc.txt
         """
     }
 
