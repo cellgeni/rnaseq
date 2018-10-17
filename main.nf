@@ -649,7 +649,7 @@ if(params.aligner != 'salmon') {
         script:
         def mito_name = params.mito_name
         """
-        python2 $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
+        python $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
         """
     }
 
