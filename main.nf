@@ -460,7 +460,7 @@ if(params.aligner == 'star'){
     star_aligned
         .filter { name, logs, bams -> check_log(logs) }
         .map    { name, logs, bams -> [name, bams] }
-    .into { bam_featurecounts; bam_mapsummary }
+    .into { ch_featurecounts; ch_indexbam }
 }
 
 if(params.aligner == 'salmon'){
@@ -560,7 +560,7 @@ if(params.aligner == 'hisat2'){
         file hisat2_bam
 
         output:
-        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into bam_featurecounts, bam_mapsummary
+        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_featurecounts, ch_indexbam
 
         script:
         def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -586,7 +586,7 @@ if(params.aligner != 'salmon') {
             }
 
         input:
-        set val(samplename), file(thebam) from bam_featurecounts
+        set val(samplename), file(thebam) from ch_featurecounts
         file gtf from gtf_featureCounts.collect()
         file biotypes_header
 
@@ -620,22 +620,36 @@ if(params.aligner != 'salmon') {
         """
     }
 
-    process bam_mapsummary {
+    process indexbam {
         tag "${samplename}"
         publishDir "${params.outdir}/mapsummary", mode: 'copy'
 
         input:
-        set val(samplename), file(thebam) from bam_mapsummary
+        set val(samplename), file(thebam) from ch_indexbam
 
         output:
-        file "*_mqc.txt" into ch_mapsummary_results
+        set val(samplename), file("*.idxstats") into ch_mapsummary
+
+        """
+        samtools index $thebam
+        samtools idxstats $thebam > ${samplename}.idxstats
+        """
+    }
+    
+    process mapsummary {
+        tag "${samplename}"
+        publishDir "${params.outdir}/mapsummary", mode: 'copy'
+
+        input:
+        set val(samplename), file(thestats) from ch_mapsummary
+
+        output:
+        file "*_mqc.txt" into ch_mapsummary_qc
 
         script:
         def mito_name = params.mito_name
         """
-        samtools index $thebam
-        samtools idxstats $thebam > ${samplename}.idxstats
-        python2 $baseDir/bin/mito.py -m ${mito_name} -t ${samplename}.idxstats > ${samplename}_mqc.txt
+        python2 $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
         """
     }
 
@@ -698,7 +712,7 @@ process multiqc {
 
     input:
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
-    file ('mapsummary/*') from ch_mapsummary_results.collect().ifEmpty([])
+    file ('mapsummary/*') from ch_mapsummary_qc.collect().ifEmpty([])
     file ('featureCounts_biotype/*') from ch_fc_biotype.collect()
     file ('alignment/*') from ch_alignment_logs.collect()
 /*
