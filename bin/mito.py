@@ -55,7 +55,7 @@ thedict = collections.OrderedDict(
 
 for item in thedict:
   num = thedict[item]
-  print "%s\t%d"     %   (item, num)
+  print("%s\t%d"     %   (item, num))
 
 
 
