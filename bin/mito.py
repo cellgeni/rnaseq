@@ -40,29 +40,22 @@ if id_unmapped < 0:
   raise ValueError("Unmapped tag '*' not found")
 
 
-sum_mapped_ercc = sum(df[2][ids_ercc])
-sum_mapped      = sum(df[2])
-sum_unmapped    = df[3][id_unmapped]
-sum_mito        = df[3][id_mito]
-sum_reads       = sum_mapped + sum_unmapped
+sum_mapped_ercc   = sum(df[2][ids_ercc])
+sum_mapped_mito   = df[2][id_mito]
+sum_mapped_other  = sum(df[2]) - sum_mapped_ercc - sum_mapped_mito
+sum_unmapped      = df[3][id_unmapped]
 
-                  # Use a single read as an out-of-bound count.
-                  # This is philosophically questionable, but in practice practical.
-if sum_reads == 0:
-  sum_reads = 1
-  sum_unmapped = 1
 
 thedict = collections.OrderedDict(
-[("total"       ,   sum_reads)
-,("mapped"      ,   sum_mapped)
-,("unmapped"    ,   sum_unmapped)
-,("ercc"        ,   sum_mapped_ercc)
-,("mito"        ,   sum_mito)
+[("mapped_other"  ,   sum_mapped_other)
+,("unmapped"      ,   sum_unmapped)
+,("mapped_ercc"   ,   sum_mapped_ercc)
+,("mapped_mito"   ,   sum_mapped_mito)
 ])
 
 for item in thedict:
   num = thedict[item]
-  print "%s\t%d\t%.2f"     %   (item, num, num * 100.0 / sum_reads)
+  print "%s\t%d"     %   (item, num)
 
 
 
