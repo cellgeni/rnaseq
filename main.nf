@@ -592,7 +592,7 @@ if(params.aligner != 'salmon') {
 
         output:
         file "*.gene.featureCounts.txt" into featureCounts_to_merge
-        file "*.gene.featureCounts.txt.summary"
+        file "*.gene.featureCounts.txt.summary" into ch_fc_summary
         file "*.biotype_counts*mqc.{txt,tsv}" into ch_fc_biotype      // captures _counts_gs_mqc.tsv as well
 
         script:
@@ -613,10 +613,10 @@ if(params.aligner != 'salmon') {
           -o ${samplename}.biotype.featureCounts.txt $pairedend   \\
           -s $featureCounts_direction ${extraparams} $thebam
 
-        cut -f 1,7 ${samplename}.biotype.featureCounts.txt | tail -n 7 > tmp_file
-        cat $biotypes_header tmp_file >> ${samplename}.biotype_counts_mqc.txt
-        # mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
-        # TODO this is pbb a multiqc script, activate when ready.
+        cut -f 1,7 ${samplename}.biotype.featureCounts.txt |      \\
+            tail -n +3 | cat $biotypes_header - >> ${samplename}.biotype_counts_mqc.txt
+
+        mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
         """
     }
 
@@ -654,7 +654,8 @@ if(params.aligner != 'salmon') {
 
     process merge_featureCounts {
           // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
-        tag "$outputname"
+        // tag "${input_files[0] + '(N=' + input_files.size() + ')'}"
+        tag "${input_files[0]}"
         publishDir "${params.outdir}/featureCounts", mode: 'copy'
 
         input:
@@ -712,7 +713,9 @@ process multiqc {
     input:
     file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
     file ('mapsummary/*') from ch_mapsummary_qc.collect().ifEmpty([])
+    file ('featureCounts/*') from ch_fc_summary.collect()
     file ('featureCounts_biotype/*') from ch_fc_biotype.collect()
+
     file ('alignment/*') from ch_alignment_logs.collect()
 /*
     file ('trimgalore/*') from trimgalore_results.collect()
