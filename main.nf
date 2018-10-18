@@ -616,8 +616,9 @@ if(params.aligner != 'salmon') {
         cut -f 1,7 ${samplename}.biotype.featureCounts.txt |      \\
             tail -n +3 | cat $biotypes_header - >> ${samplename}.biotype_counts_mqc.txt
 
+        # Below works, but will require a new NF process for python.
         # rRNA: ribosomal RNA.
-        python3 $baseDir/bin/mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
+        # python3 $baseDir/bin/mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
         """
     }
 
