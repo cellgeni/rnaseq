@@ -37,9 +37,11 @@ def mqc_feature_stat(bfile, features, outfile, sname=None):
             for ln in bfl:
                 if ln.startswith('#'):
                     continue
-                ft, cn = ln.strip().split('\t')
+                ft, cn = ln.split('\t')
                 fcounts[ft] = float(cn)
-    except:
+
+    except Exception as e:
+        print(e)
         logger.error("Trouble reading the biocount file {}".format(bfile))
         return
 
