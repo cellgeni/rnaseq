@@ -81,7 +81,9 @@ fi
 
 IMETA_OUTPUT=$(eval $cmd)
 
-if [[ $(echo $IMETA_OUTPUT) != 'No rows found' ]]; then
+if [[ $(echo $IMETA_OUTPUT) == 'No rows found' ]]; then
+    exit 64
+else
     echo "${IMETA_OUTPUT}" \
     | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print "iget -K $1/$2\n" }' \
     | bash -e

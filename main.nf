@@ -266,11 +266,22 @@ if (params.studyid > 0) {
 
         input: 
             val samplename from sample_list.flatMap{ it.readLines() }
+
         output: 
             set val(samplename), file('*.cram') optional true into ch_cram_files
+            file('*.lostcause.txt') optional true into ch_lostcause
+
         script:
         """
-        bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}
+        if bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}; then
+          true
+        else
+          stat=\$?
+          tag='UNKNOWN'
+          if [[ \$stat == 64 ]]; then tag='NOFILES'; fi
+          echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
+          false   # fail, so nextflow will retry next time
+        fi
         """
     }
 } else if (params.fastqdir) {
@@ -593,7 +604,7 @@ if(params.aligner != 'salmon') {
         output:
         file "*.gene.featureCounts.txt" into featureCounts_to_merge
         file "*.gene.featureCounts.txt.summary" into ch_fc_summary
-        file "*.biotype_counts*mqc.{txt,tsv}" into ch_fc_biotype      // captures _counts_gs_mqc.tsv as well
+        file "*.biotype_counts*mqc.txt" into ch_fc_biotype
 
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
@@ -703,6 +714,22 @@ if(params.aligner == 'salmon'){
         """
     }
 
+}
+
+
+process lostcause {
+    publishDir "${params.outdir}/lostcause", mode: 'copy'
+
+    input:
+    file (inputs) from ch_lostcause.collect().ifEmpty([])
+
+    output:
+    file ('*lostcause.txt')
+
+    script:
+    """
+    cat $inputs | sort > ${workflow.runName}.lostcause.txt
+    """
 }
 
 
