@@ -416,7 +416,7 @@ def check_log(logs) {
         }
     }
     logname = logs.getBaseName() - 'Log.final'
-    if(percent_aligned.toFloat() <= '80'.toFloat() ){
+    if(percent_aligned.toFloat() <= '5'.toFloat() ){
         log.info "#################### VERY POOR ALIGNMENT RATE! IGNORING FOR FURTHER DOWNSTREAM ANALYSIS! ($logname)    >> ${percent_aligned}% <<"
         skipped_poor_alignment << logname
         return false
