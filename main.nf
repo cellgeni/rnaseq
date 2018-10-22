@@ -269,7 +269,7 @@ if (params.studyid > 0) {
 
         output: 
             set val(samplename), file('*.cram') optional true into ch_cram_files
-            file('*.lostcause.txt') optional true into ch_lostcause
+            file('*.lostcause.txt') optional true into ch_lostcause_irods
 
         script:
         """
@@ -278,9 +278,8 @@ if (params.studyid > 0) {
         else
           stat=\$?
           tag='UNKNOWN'
-          if [[ \$stat == 64 ]]; then tag='NOFILES'; fi
+          if [[ \$stat == 64 ]]; then tag='nofiles'; fi
           echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
-          false   # fail, so nextflow will retry next time
         fi
         """
     }
@@ -394,7 +393,7 @@ process fastqc {
     set val(samplename), file(reads) from ch_fastqc
 
     output:
-    file "*_fastqc.{zip,html}" into ch_fastqc_results
+    file "*_fastqc.{zip,html}" into ch_multiqc_fastqc
 
     script:
     """
@@ -417,7 +416,7 @@ def check_log(logs) {
         }
     }
     logname = logs.getBaseName() - 'Log.final'
-    if(percent_aligned.toFloat() <= '5'.toFloat() ){
+    if(percent_aligned.toFloat() <= '80'.toFloat() ){
         log.info "#################### VERY POOR ALIGNMENT RATE! IGNORING FOR FURTHER DOWNSTREAM ANALYSIS! ($logname)    >> ${percent_aligned}% <<"
         skipped_poor_alignment << logname
         return false
@@ -465,14 +464,40 @@ if(params.aligner == 'star'){
             --runDirPerm All_RWX \\
             --quantMode GeneCounts \\
             --outFileNamePrefix ${samplename}.
+
         """
     }
     // Filter removes all 'aligned' channels that fail the check
+    ch_star_accept = Channel.create()
+    ch_star_reject = Channel.create()
+
     star_aligned
-        .filter { name, logs, bams -> check_log(logs) }
-        .map    { name, logs, bams -> [name, bams] }
-    .into { ch_featurecounts; ch_indexbam }
+        .choice(ch_star_accept, ch_star_reject)
+            { namelogsbams -> check_log(namelogsbams[1]) ? 0 : 1 }
+
+    ch_star_accept
+    .map    { name, logs, bams -> [name, bams] }
+    .into   { ch_featurecounts; ch_indexbam }
+
+    ch_star_reject
+    .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
+    .mix(ch_lostcause_irods)
+    .set    { ch_lostcause }
+
+//   process starlost {
+//     input:
+//     val(samplename) from ch_starlost
+//
+//     output:
+//     val("${samplename}\tstar\tlowmapping\n") into ch_lostcause
+//
+//     script:
+//     """
+//     true
+//     """
+//   }
 }
+
 
 if(params.aligner == 'salmon'){
     hisat_stdout = Channel.from(false)
@@ -516,9 +541,8 @@ if(params.aligner == 'salmon'){
     }
 }
 
-/*
- * STEP 3 - align with HISAT2
- */
+
+
 if(params.aligner == 'hisat2'){
     salmon_stdout = Channel.from(false)
     process hisat2Align {
@@ -603,8 +627,8 @@ if(params.aligner != 'salmon') {
 
         output:
         file "*.gene.featureCounts.txt" into featureCounts_to_merge
-        file "*.gene.featureCounts.txt.summary" into ch_fc_summary
-        file "*.biotype_counts*mqc.txt" into ch_fc_biotype
+        file "*.gene.featureCounts.txt.summary" into ch_multiqc_fc
+        file "*.biotype_counts*mqc.txt" into ch_multiqc_fcbiotype
 
         script:
         def extraparams = params.fcextra.toString() - ~/^dummy/
@@ -656,7 +680,7 @@ if(params.aligner != 'salmon') {
         set val(samplename), file(thestats) from ch_mapsummary
 
         output:
-        file "*_mqc.txt" into ch_mapsummary_qc
+        file "*_mqc.txt" into ch_multiqc_mapsum
 
         script:
         def mito_name = params.mito_name
@@ -724,7 +748,7 @@ process lostcause {
     file (inputs) from ch_lostcause.collect().ifEmpty([])
 
     output:
-    file ('*lostcause.txt')
+    file ('*lostcause.txt') into ch_multiqc_lostcause
 
     script:
     """
@@ -740,10 +764,11 @@ process multiqc {
     !params.skip_multiqc
 
     input:
-    file ('fastqc/*') from ch_fastqc_results.collect().ifEmpty([])
-    file ('mapsummary/*') from ch_mapsummary_qc.collect().ifEmpty([])
-    file ('featureCounts/*') from ch_fc_summary.collect()
-    file ('featureCounts_biotype/*') from ch_fc_biotype.collect()
+    file ('*lostcause.txt') from ch_multiqc_lostcause
+    file ('fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
+    file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
+    file ('featureCounts/*') from ch_multiqc_fc.collect()
+    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect()
 
     file ('alignment/*') from ch_alignment_logs.collect()
 /*
