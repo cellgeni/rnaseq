@@ -285,6 +285,7 @@ if (params.studyid > 0) {
     }
 } else if (params.fastqdir) {
     ch_cram_files = Channel.empty()
+    ch_lostcause_irods = Channel.empty()
     if (params.singleend) {
       process get_fastq_files_single {
           tag "$samplename"
@@ -742,47 +743,37 @@ if(params.aligner == 'salmon'){
 
 
 process lostcause {
+
     publishDir "${params.outdir}/lostcause", mode: 'copy'
 
     input:
     file (inputs) from ch_lostcause.collect().ifEmpty([])
 
     output:
-    file ('*lostcause.txt') into ch_multiqc_lostcause
+    file ('*mqc.txt') into ch_multiqc_lostcause
 
     script:
     """
-    cat $inputs | sort > ${workflow.runName}.lostcause.txt
+    cat $inputs | sort > ${workflow.runName}_mqc.txt
     """
 }
 
 
 process multiqc {
+
     publishDir "${params.outdir}/MultiQC", mode: 'copy'
 
     when:
     !params.skip_multiqc
 
     input:
-    file ('*lostcause.txt') from ch_multiqc_lostcause
+    file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
     file ('fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
     file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
     file ('featureCounts/*') from ch_multiqc_fc.collect()
     file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect()
-
     file ('alignment/*') from ch_alignment_logs.collect()
-/*
-    file ('trimgalore/*') from trimgalore_results.collect()
-    file ('rseqc/*') from rseqc_results.collect().ifEmpty([])
-    file ('rseqc/*') from genebody_coverage_results.collect().ifEmpty([])
-    file ('preseq/*') from preseq_results.collect().ifEmpty([])
-    file ('dupradar/*') from dupradar_results.collect().ifEmpty([])
-    file ('featureCounts/*') from featureCounts_logs.collect()
-    file ('stringtie/stringtie_log*') from stringtie_log.collect()
-    file ('sample_correlation_results/*') from sample_correlation_results.collect().ifEmpty([]) // If the Edge-R is not run create an Empty
-    file ('software_versions/*') from software_versions_yaml.collect()
-    file ('workflow_summary/*') from workflow_summary_yaml.collect()
-*/
+
     output:
     file "*multiqc_report.html" into multiqc_report
     file "*_data"
