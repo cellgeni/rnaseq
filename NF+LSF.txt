@@ -1,0 +1,169 @@
+
+
+Generally useful.
+
+  https://www.nextflow.io/docs/latest/index.html
+    Nextflow documentation
+
+  https://gitter.im/nextflow-io/nextflow
+    a chat channel with lot of Nextflow developers, and most importantly Paolo Di Tommaso.
+
+  https://github.com/nextflow-io/patterns
+    Nextflow patterns
+
+  http://scratchy.internal.sanger.ac.uk/index.php/IRODS_for_Sequencing_Users
+    IRODS information
+
+  http://mediawiki.internal.sanger.ac.uk/index.php/Using_the_Farm
+    Using the farm
+
+TODO:
+  once the pipeline is more stable, we should start not pulling a branch, but
+  pulling a tag, i.e. a frozen moment in time. This will assist towards
+  replication.
+
+
+Steps to run pipeline.
+
+  - get interactive farm node.
+
+  - start screen session.
+
+      screen -S name
+
+  - start conda environment
+
+      source activate rnaseq1.6  (conda)
+
+  - make appropriate directory in /lustre/scratch117/cellgen/cellgeni
+
+      mkdir stijn/test/foo      # for testing
+      mkdir tic-99              # for non-datasharing ticket
+
+    For datasharing use the datasharing toplevel directory
+
+      mkdir datasharing/tic-74
+
+    We will keep adding toplevel names
+
+  - The main requirement at the moment: a samples file AND a study ID,
+    so --samplefile FNAME --studyid STUDYID.  IRODS will be queried for the
+    sample names in the samples file FNAME using the study ID as well.  The
+    pipeline can also be run on a set of fastq files using --fastqdir DIRNAME;
+    in that case a sample file still needs to be given, and for each SNAME in
+    the sample file the pipeline expects files SNAME_1.fastq.gz and
+    SNAME_2.fastq.gz to be present in the fastq directory. With the parameter
+    --singleend true, the pipeline expects SNAME.fastq.gz to be present.
+
+
+    We can get sample names either from the user, or from a studyid.  Use myrods-study.sh
+    in our 'utils' repository; this may become a submodule of some of our other
+    repositories (outstanding task).
+
+      myrods-study.sh <STUDYID>
+
+    =====================================================================
+
+    I recommend storing the nextflow invocation in a file that
+		is sourced or is a bash script to be run. I customarily call this file RESUME.
+    Anything that's set either in the nextflow file as
+    a subordinate part of the toplevel 'params' variable, or is loaded
+    as a config file can be overridden.
+    For simple toplevel parameters (e.g. params.somevalue = "foo") this
+    can be done on the command line.
+    
+      params.somevalue = "foo"        # e.g. in main.nf
+      --somevalue foo                 # command line.
+
+    For more elaborate config settings determining 'params' or 'process' this
+    can be done by loading a json config file on the command line using -c
+    MYCONFIGFILE. I would describe the process as similar to a cascading style
+    sheet; Nextflow merges all its config files, but has a hierarchy of
+    precedence. This is the documentation:
+
+      https://www.nextflow.io/docs/latest/config.html
+
+    The hierarchy is this (not clearly stated in documentary - need
+    to verify this):
+
+      -c <config file>                        overrides
+      nextflow.config current directory       overrides
+      script base directory                   overrides
+      $HOME/.nextflow.config
+
+    Use -C <config file> to only use that config file and no other. In our
+    current set-up this unlikely to be of use.
+
+  - nextflow pull <repo> -r <branch>
+
+    nextflow keeps its files in $HOME/.nextflow/assets.  To update code you can
+    push it to github and then pull it, or you can run a file directly:
+
+      nextflow run /nfs/users/nfs_s/svd/git/cellgeni/rnaseq-noqc/main.nf
+
+    Do not use the -r <branch> option when doing this.
+
+  - nextflow run <repo> -r <branch> nextflow-params pipeline-params
+
+    - Nextflow params have single dash
+    - Pipeline parameters have double dash (always followed by an argument)
+      If a modality needs to be set use e.g. '--scratch true' (if scratch is a pipeline option).
+
+  - After the pipeline has finished:
+
+      nextflow log    # shows names of all nextflow runs in this directory.
+      nextflow log agitated_mcnulty -f script > out.script.txt
+
+    Where agitated_mcnulty is the name of the run. This creates a list
+    of all the commands that were run.
+    Then, to rsync to warehouse, from the parent folder
+
+      copy-to-wh.sh tic-38
+
+    (from our utils repository).  This will copy everything but for those in a
+    hardcoded exception list in the script. This exception list currently
+    consists of the directories
+    
+      work/ donotcopy/ .nextflow/
+
+    Anything that you want to keep without copying it to warehouse, simply move
+    it to donotcopy.  The target directory will have the same name; if it
+    exists the script will exit, but rsync can be forced with the -F option.
+    Use -D (dry run) to see what command will be run without actually running
+    it.
+
+  - Useful tools to inspect the pipeline state or debug software errors:
+
+    - console output
+
+    - results/trace.txt
+        with information about jobs, with tags. You can then go to the
+        directory where the job was executed e.g.
+
+        cd work/a5/82c6d0499783f2fc67c15838e3ac44/
+        ls -a  # shows Nextflow admin and scripts.
+
+    - bjobs
+
+    - bjobs -l
+
+    - customised bjobs: e.g. this bash function:
+
+bj () {
+  bjobs -o 'jobid queue stat exec_host run_time job_name memlimit delimiter=" "' | perl -pe 's/second(\(s\))?//' | column -t
+}
+
+      - .nextflow directory and .nextflow.log
+
+    =====================================================================
+
+Running nextflow on k8s
+
+    Creating a node that has a nextflow docker image.
+
+      -
+
+
+
+
+
