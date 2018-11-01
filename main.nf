@@ -484,19 +484,6 @@ if(params.aligner == 'star'){
     .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
     .mix(ch_lostcause_irods)
     .set    { ch_lostcause }
-
-//   process starlost {
-//     input:
-//     val(samplename) from ch_starlost
-//
-//     output:
-//     val("${samplename}\tstar\tlowmapping\n") into ch_lostcause
-//
-//     script:
-//     """
-//     true
-//     """
-//   }
 }
 
 
@@ -782,10 +769,7 @@ process multiqc {
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
-    # multiqc . -f $rtitle $rfilename \\
-    #     -m custom_content -m picard -m preseq -m rseqc -m featureCounts -m hisat2 -m star -m cutadapt -m fastqc
-    multiqc . -f $rtitle $rfilename \\
-        -m custom_content -m featureCounts -m star -m fastqc
+    multiqc . -f $rtitle $rfilename -m custom_content -m featureCounts -m star -m fastqc
     """
 }
 
