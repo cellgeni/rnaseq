@@ -768,7 +768,7 @@ process multiqc {
 
     input:
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
-    file ('fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
+    file (fastqc:'fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
     file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
     file ('featureCounts/*') from ch_multiqc_fc.collect()
     file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect()
