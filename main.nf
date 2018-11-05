@@ -769,7 +769,7 @@ process multiqc {
     rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
     rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
     """
-    multiqc . -f $rtitle $rfilename -m custom_content -m featureCounts -m star -m fastqc
+    multiqc . -f $rtitle ${params.runtag} -m custom_content -m featureCounts -m star -m fastqc
     """
 }
 
