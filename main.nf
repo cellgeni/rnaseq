@@ -446,9 +446,9 @@ if(params.aligner == 'star'){
 
         output:
         set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
-        file "*.SJ.out.tab"
+        file "*.ReadsPerGene.out.tab" into ch_merge_starcounts
         file "*.out" into ch_alignment_logs
-        file "*.ReadsPerGene.out.tab"
+        file "*.SJ.out.tab"
 
         script:
                   // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
@@ -500,8 +500,8 @@ if(params.aligner == 'salmon'){
         file trans_gene from salmon_trans_gene.collect()
 
         output:
-        file "${prefix}.quant.sf" into salmon_trans
-        file "${prefix}.quant.genes.sf" into salmon_genes
+        file "${prefix}.quant.sf" into ch_salmon_trans
+        file "${prefix}.quant.genes.sf" into ch_salmon_genes
 
         script:
         """
@@ -614,7 +614,7 @@ if(params.aligner != 'salmon') {
         file biotypes_header
 
         output:
-        file "*.gene.featureCounts.txt" into featureCounts_to_merge
+        file "*.gene.featureCounts.txt" into ch_merge_fc
         file "*.gene.featureCounts.txt.summary" into ch_multiqc_fc
         file "*.biotype_counts*mqc.txt" into ch_multiqc_fcbiotype
 
@@ -677,14 +677,39 @@ if(params.aligner != 'salmon') {
         """
     }
 
-    process merge_featureCounts {
-          // TODO: ideally we pass the samplename in the channel. Not sure how to do this given below channel.collect().
-        // tag "${input_files[0] + '(N=' + input_files.size() + ')'}"
+
+// https://www.biostars.org/p/218995/
+// column 1: gene ID
+// column 2: counts for unstranded RNA-seq
+// column 3: counts for the 1st read strand aligned with RNA (htseq-count option -s yes)
+// column 4: counts for the 2nd read strand aligned with RNA (htseq-count option -s reverse)
+
+    process merge_starcounts {
+
         tag "${input_files[0]}"
-        publishDir "${params.outdir}/featureCounts", mode: 'copy'
+        publishDir "${params.outdir}/combined", mode: 'link'
 
         input:
-        file input_files from featureCounts_to_merge.collect()
+        file input_files from ch_merge_starcounts.collect()
+
+        output:
+        file '*-star-genecounts.txt'
+
+        script:
+        def outputname = "${params.runtag}-star-genecounts.txt"
+        """
+        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+          -c 2 --rm-suffix .ReadsPerGene.out.tab                          \\
+          -o $outputname -i $input_files
+        """
+    }
+
+    process merge_featureCounts {
+        tag "${input_files[0]}"
+        publishDir "${params.outdir}/combined", mode: 'link'
+
+        input:
+        file input_files from ch_merge_fc.collect()
 
         output:
         file '*-fc-genecounts.txt'
@@ -703,35 +728,36 @@ if(params.aligner != 'salmon') {
 if(params.aligner == 'salmon'){
     
     process mergeSalmonCounts {
-        tag "${input_trans[0].baseName - '_1.quant.sf'}"
-        publishDir "${params.outdir}/mergedCounts", mode: 'copy'
+        tag "${input_trans[0]}"
+        publishDir "${params.outdir}/combined", mode: 'link'
 
         input:
-        file input_trans from salmon_trans.collect()
-        file input_genes from salmon_genes.collect()
+        file input_trans from ch_salmon_trans.collect()
+        file input_genes from ch_salmon_genes.collect()
 
         output:
         file '*counts.txt'
 
         script:
+        def outtransname = "${params.runtag}-salmon-transcounts.txt"
+        def outgenesname = "${params.runtag}-salmon-genecounts.txt"
         """
         python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
           --rm-suffix _1.quant.genes.sf                                   \\
           -c -1 --skip-comments --header                                  \\
-          -o ${params.runtag}-salmon-genecounts.txt -i $input_genes
+          -o $outgenesname -i $input_genes
         python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          --rm-suffix _1.quant.genes.sf                                   \\
+          --rm-suffix _1.quant.sf                                         \\
           -c -1 --skip-comments --header                                  \\
-          -o ${params.runtag}-salmon-transcounts.txt -i $input_trans
+          -o $outtransname -i $input_trans
         """
     }
-
 }
 
 
 process lostcause {
 
-    publishDir "${params.outdir}/lostcause", mode: 'copy'
+    publishDir "${params.outdir}/lostcause", mode: 'link'
 
     input:
     file (inputs) from ch_lostcause.collect().ifEmpty([])
@@ -741,14 +767,14 @@ process lostcause {
 
     script:
     """
-    cat $inputs | sort > ${workflow.runName}_mqc.txt
+    cat $inputs | sort > ${params.runtag}.${workflow.runName}_mqc.txt
     """
 }
 
 
 process multiqc {
 
-    publishDir "${params.outdir}/MultiQC", mode: 'copy'
+    publishDir "${params.outdir}/combined", mode: 'link'
 
     when:
     !params.skip_multiqc
