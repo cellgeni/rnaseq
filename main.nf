@@ -757,16 +757,16 @@ if(params.aligner == 'salmon'){
 
 process lostcause {
 
-    publishDir "${params.outdir}/lostcause", mode: 'link'
+    publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
     file (inputs) from ch_lostcause.collect().ifEmpty([])
 
     output:
-    file ('*mqc.txt') into ch_multiqc_lostcause
+    file ('*_lostcause.txt') into ch_multiqc_lostcause
 
     script:
-    def outputname = "${params.runtag}.${workflow.runName}_mqc.txt"
+    def outputname = "${params.runtag}.${workflow.runName}_lostcause.txt"
     """
     echo -e "# plot_type: 'table'\n# section_name: 'Lost samples'" > $outputname
     echo -e "Sample\tProcess\tMessage" > $outputname
