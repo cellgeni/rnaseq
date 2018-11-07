@@ -769,8 +769,8 @@ process lostcause {
     def outputname = "${params.runtag}.${workflow.runName}_lostcause.txt"
     """
     echo -e "# plot_type: 'table'\n# section_name: 'Lost samples'" > $outputname
-    echo -e "Sample\tProcess\tMessage" > $outputname
-    cat $inputs | sort > $outputname
+    echo -e "Sample\tProcess\tMessage" >> $outputname
+    cat $inputs | sort >> $outputname
     """
 }
 
