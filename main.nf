@@ -795,9 +795,10 @@ process multiqc {
     file "*_data"
 
     script:
-    def htmlname = "${params.runtag}_multiqc.html"
+    def filename = "${params.runtag}_multiqc.html"
+    def reporttitle = "${params.runtag}"
     """
-    multiqc . -f $rtitle --filename $htmlname -m custom_content -m featureCounts -m star -m fastqc
+    multiqc . -f --title "$reporttitle" --filename "$filename" -m custom_content -m featureCounts -m star -m fastqc
     """
 }
 
