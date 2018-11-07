@@ -802,4 +802,23 @@ process multiqc {
     """
 }
 
+process workflow_manifest {
+
+    publishDir "${params.outdir}/combined", mode: 'copy'
+
+    output:
+    file('*.manifest.txt')
+
+    script:
+    def versionfile = "${params.runtag}.manifest.txt"
+    """
+cat <<EOF > $versionfile
+Project : $workflow.projectDir
+Git info: $workflow.repository - $workflow.revision [$workflow.commitId]
+Cmd line: $workflow.commandLine
+Manifest's pipeline version: $workflow.manifest.version
+EOF
+    """
+}
+
 
