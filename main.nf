@@ -810,13 +810,14 @@ process workflow_manifest {
     file('*.manifest.txt')
 
     script:
+                      // Manifest's pipeline version: $workflow.manifest.version
+                      // ^ option in nextflow config section, perhaps for later.
     def versionfile = "${params.runtag}.manifest.txt"
     """
 cat <<EOF > $versionfile
 Project : $workflow.projectDir
 Git info: $workflow.repository - $workflow.revision [$workflow.commitId]
 Cmd line: $workflow.commandLine
-Manifest's pipeline version: $workflow.manifest.version
 EOF
     """
 }
