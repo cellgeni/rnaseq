@@ -79,7 +79,7 @@ params.singleend = false
 
 // Configurable variables
 params.scratch = false
-params.runtag  = "NF"                        // use runtag as primary tag identifying the run; e.g. studyid
+params.runtag  = "cgirnaseq"                 // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
@@ -699,7 +699,7 @@ if(params.aligner != 'salmon') {
         def outputname = "${params.runtag}-star-genecounts.txt"
         """
         python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          -c 2 --rm-suffix .ReadsPerGene.out.tab                          \\
+          -c 1 --rm-suffix .ReadsPerGene.out.tab                          \\
           -o $outputname -i $input_files
         """
     }
@@ -795,10 +795,9 @@ process multiqc {
     file "*_data"
 
     script:
-    rtitle = custom_runName ? "--title \"$custom_runName\"" : ''
-    rfilename = custom_runName ? "--filename " + custom_runName.replaceAll('\\W','_').replaceAll('_+','_') + "_multiqc_report" : ''
+    def htmlname = "${params.runtag}_multiqc.html"
     """
-    multiqc . -f $rtitle ${params.runtag} -m custom_content -m featureCounts -m star -m fastqc
+    multiqc . -f $rtitle --filename $htmlname -m custom_content -m featureCounts -m star -m fastqc
     """
 }
 
