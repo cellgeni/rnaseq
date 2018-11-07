@@ -791,7 +791,7 @@ process multiqc {
     file ('alignment/*') from ch_alignment_logs.collect()
 
     output:
-    file "*multiqc_report.html" into multiqc_report
+    file "*_multiqc.html" into multiqc_report
     file "*_data"
 
     script:
