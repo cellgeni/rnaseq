@@ -796,7 +796,7 @@ process multiqc {
 
     script:
     def filename = "${params.runtag}_multiqc.html"
-    def reporttitle = "${params.runtag}"
+    def reporttitle = "${params.runtag} (cellgeni/rnaseq)"
     """
     multiqc . -f --title "$reporttitle" --filename "$filename" -m custom_content -m featureCounts -m star -m fastqc
     """
