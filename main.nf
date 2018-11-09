@@ -777,7 +777,12 @@ process lostcause {
 
 process multiqc {
 
-    publishDir "${params.outdir}/combined", mode: 'link'
+    publishDir "${params.outdir}", mode: 'link',
+      saveAs: {filename ->
+          if (filename.indexOf("multiqc.html") > 0) "combined/$filename"
+          else if (filename.indexOf("_data") > 0) "$filename"
+          else null
+      }
 
     when:
     !params.skip_multiqc
@@ -791,7 +796,7 @@ process multiqc {
     file ('alignment/*') from ch_alignment_logs.collect()
 
     output:
-    file "*_multiqc.html" into multiqc_report
+    file "*_multiqc.html"
     file "*_data"
 
     script:
