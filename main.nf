@@ -763,10 +763,10 @@ process lostcause {
     file (inputs) from ch_lostcause.collect().ifEmpty([])
 
     output:
-    file ('*_lostcause.txt') into ch_multiqc_lostcause
+    file ('*.lostcause_mqc.txt') into ch_multiqc_lostcause
 
     script:
-    def outputname = "${params.runtag}.${workflow.runName}_lostcause.txt"
+    def outputname = "${params.runtag}.${workflow.runName}.lostcause_mqc.txt"
     """
     echo -e "# plot_type: 'table'\n# section_name: 'Lost samples'" > $outputname
     echo -e "Sample\tProcess\tMessage" >> $outputname
