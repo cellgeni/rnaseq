@@ -104,7 +104,6 @@ params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: 
 params.splicesites = false
 params.download_hisat2index = false
 params.download_fasta = false
-params.download_gtf = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
@@ -130,21 +129,28 @@ if( params.star_index && params.aligner == 'star' ){
         .fromPath(params.star_index)
         .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
 }
-if ( params.hisat2_index && params.aligner == 'hisat2' ){
-    hs2_indices = Channel
-        .fromPath("${params.hisat2_index}*")
-        .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
-}
-if ( params.salmon_index && params.aligner == 'salmon' ){
-    salmon_index = Channel
-        .fromPath(params.salmon_index)
-        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
-}
-if ( params.salmon_trans_gene && params.aligner == 'salmon' ){
-    salmon_trans_gene = Channel
-        .fromPath(params.salmon_trans_gene)
-        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
-}
+
+//if ( params.hisat2_index && params.aligner == 'hisat2' ){
+//    hs2_indices = Channel
+//        .fromPath("${params.hisat2_index}*")
+//        .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
+//}
+
+hs2_indices = params.hisat2_index && params.aligner == 'hisat2'
+    ? Channel.fromPath("${params.hisat2_index}*")
+      .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
+    : Channel.empty()
+
+salmon_index = params.salmon_index && params.aligner == 'salmon'
+    ? Channel.fromPath(params.salmon_index)
+       .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
+    : Channel.empty()
+
+salmon_trans_gene = params.salmon_trans_gene && params.aligner == 'salmon'
+    ?  Channel.fromPath(params.salmon_trans_gene)
+       .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
+    : Channel.empty()
+
 if ( params.dna ){
     f = file(params.dna)
     if( !f.exists() ) exit 1, "Fasta file not found: ${params.dna}"
@@ -164,21 +170,13 @@ if( params.gtf ){
         .into { gtf_makeSTARindex; gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12;
               gtf_star; gtf_dupradar; gtf_featureCounts; gtf_stringtieFPKM }
 }
-else if ( !params.download_gtf ){
-    exit 1, "No GTF annotation specified!"
-}
-if( params.bed12 ){
-    bed12 = Channel
-        .fromPath(params.bed12)
-        .ifEmpty { exit 1, "BED12 annotation file not found: ${params.bed12}" }
-        .into {bed_rseqc; bed_genebody_coverage}
-}
-if( params.aligner == 'hisat2' && params.splicesites ){
-    Channel
-        .fromPath(params.bed12)
-        .ifEmpty { exit 1, "HISAT2 splice sites file not found: $alignment_splicesites" }
-        .into { indexing_splicesites; alignment_splicesites }
-}
+
+Channel
+  .fromPath(params.bed12)
+  .until(params.aligner != 'hisat2' || ! params.splicesites)
+  .ifEmpty { exit 1, "HISAT2 splice sites file not found: $alignment_splicesites" }
+  .into { indexing_splicesites; alignment_splicesites }
+
 
 // Has the run name been specified by the user?
 //  this has the bonus effect of catching both -name and --name
@@ -221,7 +219,6 @@ if(params.aligner == 'hisat2') {
     if(params.splicesites)         summary['Splice Sites'] = params.splicesites
 }
 if(params.gtf)                 summary['GTF Annotation']  = params.gtf
-else if(params.download_gtf)   summary['GTF URL']         = params.download_gtf
 if(params.bed12)               summary['BED Annotation']  = params.bed12
 summary['Max Memory']     = params.max_memory
 summary['Max CPUs']       = params.max_cpus
@@ -419,7 +416,7 @@ process mixcr {
     set val(samplename), file(reads) from ch_mixcr
 
     output:
-    file "*full_clones.txt", file "*.clones.clna", file "*.vdjca"
+    set file("*full_clones.txt"), file("*.clones.clna"), file("*.vdjca")
 
     script:
     """
