@@ -7,7 +7,7 @@ vim: syntax=groovy
 ========================================================================================
  Cellular Genetics bulk-RNA-Seq analysis pipeline, Wellcome Sanger Institute
  #### Homepage / Documentation
- https://github.com/cellgeni/RNAseq
+ https://github.com/cellgeni/rnaseq
  #### Authors
  Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
  Stijn van Dongen <svd@sanger.ac.uk>
@@ -35,35 +35,15 @@ def helpMessage() {
       --reverse_stranded            The library is reverse stranded
       --unstranded                  The default behaviour
 
-    References                      If not specified in the configuration file or you wish to overwrite any of the references.
-      --star_index                  Path to STAR index
-      --star_overhang               sjdbOverhang parameter for building a STAR index (has to be (read_length - 1))
-      --fasta                       Path to Fasta reference
-      --gtf                         Path to GTF file
-      --bed12                       Path to bed12 file
-
     Other options:
       --outdir                      The output directory where the results will be saved
-      --clusterOptions              Extra SLURM options, used in conjunction with Uppmax.config
-      -name                         Name for the pipeline run. If not specified, Nextflow will automatically generate a random mnemonic.
+      --runtag                      Tag for outputs
     """.stripIndent()
 }
 
 
-/*
- * utils is shared between projects. Include it in the PATH so scripts are found.
- */
-// env.PATH = "$baseDir/utils:$PATH"
-
-
-/*
- * SET UP CONFIGURATION VARIABLES
- */
-
-// Pipeline version
 version = '1.5'
 
-// Show help message
 params.help = false
 if (params.help){
     helpMessage()
@@ -77,7 +57,7 @@ params.outdir = './results'
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
 params.singleend = false
 
-// Configurable variables
+
 params.scratch = false
 params.runtag  = "cgirnaseq"                 // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
@@ -117,24 +97,18 @@ reverse_stranded = params.reverse_stranded
 unstranded = params.unstranded
 
 
-// Choose aligner
+
 params.aligner = 'star'
 if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 'salmon'){
     exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
 }
 
-// Validate inputs
+
 if( params.star_index && params.aligner == 'star' ){
     star_index = Channel
         .fromPath(params.star_index)
         .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
 }
-
-//if ( params.hisat2_index && params.aligner == 'hisat2' ){
-//    hs2_indices = Channel
-//        .fromPath("${params.hisat2_index}*")
-//        .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
-//}
 
 hs2_indices = params.hisat2_index && params.aligner == 'hisat2'
     ? Channel.fromPath("${params.hisat2_index}*")
@@ -171,11 +145,11 @@ if( params.gtf ){
               gtf_star; gtf_dupradar; gtf_featureCounts; gtf_stringtieFPKM }
 }
 
-Channel
-  .fromPath(params.bed12)
-  .until(params.aligner != 'hisat2' || ! params.splicesites)
-  .ifEmpty { exit 1, "HISAT2 splice sites file not found: $alignment_splicesites" }
-  .into { indexing_splicesites; alignment_splicesites }
+ch_tmp = params.aligner == 'hisat2' && params.splicesites
+  ?  Channel.fromPath(params.bed12)
+    .ifEmpty { exit 1, "HISAT2 splice sites file not found: $params.bed12" }
+  : Channel.empty()
+ch_tmp.set { alignment_splicesites }
 
 
 // Has the run name been specified by the user?
@@ -416,7 +390,9 @@ process mixcr {
     set val(samplename), file(reads) from ch_mixcr
 
     output:
-    set file("*full_clones.txt"), file("*.clones.clna"), file("*.vdjca")
+    file("*full_clones.txt")
+    file("*.clones.clna")
+    file("*.vdjca")
 
     script:
     """
@@ -428,9 +404,6 @@ process mixcr {
 
 
 
-/*
- * STEP 3 - align with STAR
- */
 // Function that checks the alignment rate of the STAR output
 // and returns true if the alignment passed and otherwise false
 skipped_poor_alignment = []
@@ -472,7 +445,7 @@ process star {
     output:
     set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
     file "*.ReadsPerGene.out.tab" into ch_merge_starcounts
-    file "*.out" into ch_alignment_logs
+    file "*.out" into ch_alignment_logs_star
     file "*.SJ.out.tab"
 
     script:
@@ -504,7 +477,7 @@ process star {
 
   ch_star_accept
   .map    { name, logs, bams -> [name, bams] }
-  .into   { ch_featurecounts; ch_indexbam }
+  .into   { ch_fc_star; ch_bam_star }
 
   ch_star_reject
   .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
@@ -512,48 +485,46 @@ process star {
   .set    { ch_lostcause }
 
 
-if(params.aligner == 'salmon'){
-    hisat_stdout = Channel.from(false)
-    ch_alignment_logs = Channel.from(false)
-    process salmon {
-        tag "$samplename"
-        publishDir "${params.outdir}/Salmon", mode: 'copy'
+process salmon {
+    tag "$samplename"
+    publishDir "${params.outdir}/Salmon", mode: 'copy'
 
-        input:
-        set val(samplename), file(reads) from ch_salmon
-        file index from salmon_index.collect()
-        file trans_gene from salmon_trans_gene.collect()
+    when:
+    params.aligner == 'salmon'
 
-        output:
-        file "${prefix}.quant.sf" into ch_salmon_trans
-        file "${prefix}.quant.genes.sf" into ch_salmon_genes
+    input:
+    set val(samplename), file(reads) from ch_salmon
+    file index from salmon_index.collect()
+    file trans_gene from salmon_trans_gene.collect()
 
-        script:
-        """
-        salmon quant \\
-            -i $index \\
-            -l ISR \\
-            -p ${task.cpus} \\
-            --seqBias \\
-            --gcBias \\
-            --posBias \\
-            -q \\
-            -o . \\
-            -1 ${reads[0]} \\
-            -2 ${reads[1]} \\
-            -g ${trans_gene} \\
-            --useVBOpt \\
-            --numBootstraps 100
-        mv quant.sf ${samplename}.quant.sf
-        mv quant.genes.sf ${samplename}.quant.genes.sf
-        """
+    output:
+    file "${prefix}.quant.sf" into ch_salmon_trans
+    file "${prefix}.quant.genes.sf" into ch_salmon_genes
 
-        // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
-        // Include the row names so merger can check identity.
-        // The merge step will concatenate the rows and re-transpose to obtain final result.
-    }
+    script:
+    """
+    salmon quant \\
+        -i $index \\
+        -l ISR \\
+        -p ${task.cpus} \\
+        --seqBias \\
+        --gcBias \\
+        --posBias \\
+        -q \\
+        -o . \\
+        -1 ${reads[0]} \\
+        -2 ${reads[1]} \\
+        -g ${trans_gene} \\
+        --useVBOpt \\
+        --numBootstraps 100
+    mv quant.sf ${samplename}.quant.sf
+    mv quant.genes.sf ${samplename}.quant.genes.sf
+    """
+
+    // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
+    // Include the row names so merger can check identity.
+    // The merge step will concatenate the rows and re-transpose to obtain final result.
 }
-
 
 
 process hisat2Align {
@@ -575,7 +546,7 @@ process hisat2Align {
 
     output:
     file "${samplename}.bam" into ch_hisat2_bam
-    file "${samplename}.hisat2_summary.txt" into ch_alignment_logs
+    file "${samplename}.hisat2_summary.txt" into ch_alignment_logs_hisat2
     file '.command.log' into hisat_stdout
 
     script:
@@ -611,7 +582,7 @@ process hisat2_sortOutput {
     file hisat2_bam from ch_hisat2_bam
 
     output:
-    set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_featurecounts, ch_indexbam
+    set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_fc_hisat2, ch_bam_hisat2
 
     script:
     def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
@@ -622,6 +593,15 @@ process hisat2_sortOutput {
         -o ${hisat2_bam.baseName}.sorted.bam
     """
 }
+
+
+ch_fc_hisat2
+  .mix(ch_fc_star)
+  .set{ ch_featurecounts }
+
+ch_bam_hisat2
+  .mix(ch_bam_star)
+  .set{ ch_indexbam }
 
 
 // Old branch params.aligner != salmon {
@@ -821,9 +801,10 @@ process multiqc {
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
     file (fastqc:'fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
     file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
-    file ('featureCounts/*') from ch_multiqc_fc.collect()
-    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect()
-    file ('alignment/*') from ch_alignment_logs.collect()
+    file ('featureCounts/*') from ch_multiqc_fc.collect().ifEmpty([])
+    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect().ifEmpty([])
+    file ('star/*') from ch_alignment_logs_star.collect().ifEmpty([])
+    file ('hisat2/*') from ch_alignment_logs_hisat2.collect().ifEmpty([])
 
     output:
     file "*_multiqc.html"
