@@ -391,8 +391,9 @@ process mixcr {
 
     output:
     file("*full_clones.txt")
-    file("*.clones.clna")
-    file("*.vdjca")
+
+    // file("*.clones.clna")
+    // file("*.vdjca")
 
     script:
     """
