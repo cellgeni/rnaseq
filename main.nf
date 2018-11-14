@@ -86,6 +86,8 @@ params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
 params.skip_qc = false
+params.skip_rnaseq = false
+params.add_mixcr = false
 params.mito_name = 'MT'
 params.skip_multiqc = false
 params.skip_fastqc = false
@@ -379,7 +381,11 @@ process crams_to_fastq {
 
 ch_fastqs_cram
   .mix(ch_fastqs_dir)
-  .into{ ch_reads; ch_fastqc }
+  .into{ ch_rnaseq; ch_fastqc; ch_mixcr }
+
+ch_rnaseq
+  .until{ params.skip_rnaseq }
+  .into { ch_star; ch_hisat2; ch_salmon }
 
 
 process fastqc {
@@ -401,6 +407,28 @@ process fastqc {
     fastqc -t ${task.cpus} -q $reads
     """
 }
+
+process mixcr {
+    tag "$samplename"
+    publishDir "${params.outdir}/mixcr", mode: 'copy'
+
+    when:
+    params.add_mixcr
+
+    input:
+    set val(samplename), file(reads) from ch_mixcr
+
+    output:
+    file "*full_clones.txt", file "*.clones.clna", file "*.vdjca"
+
+    script:
+    """
+    mixcr align --species hsa -t ${task.cpus} $reads ${samplename}.alignments.vdjca
+    mixcr assemble -t ${task.cpus} ${samplename}.alignments.vdjca ${samplename}.clones.clna
+    mixcr exportClones ${samplename}.clones.clna ${samplename}.full_clones.txt
+    """
+}
+
 
 
 /*
@@ -426,65 +454,65 @@ def check_log(logs) {
         return true
     }
 }
-if(params.aligner == 'star'){
-    hisat_stdout = Channel.from(false)
-    salmon_stdout = Channel.from(false)
 
-    process star {
-        tag "$samplename"
-        publishDir "${params.outdir}", mode: 'copy',
-            saveAs: { filename ->
-                if (filename ==~ /.*\.ReadsPerGene\.out\.tab/) "STARcounts/$filename"
-                else if (filename.indexOf(".bam") == -1) "STARlogs/$filename"
-                else null
-            }
+process star {
+    tag "$samplename"
+    publishDir "${params.outdir}", mode: 'copy',
+        saveAs: { filename ->
+            if (filename ==~ /.*\.ReadsPerGene\.out\.tab/) "STARcounts/$filename"
+            else if (filename.indexOf(".bam") == -1) "STARlogs/$filename"
+            else null
+        }
 
-        input:
-        set val(samplename), file(reads) from ch_reads
-        file index from star_index.collect()
-        file gtf from gtf_star.collect()
+    when:
+    params.aligner == 'star'
 
-        output:
-        set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
-        file "*.ReadsPerGene.out.tab" into ch_merge_starcounts
-        file "*.out" into ch_alignment_logs
-        file "*.SJ.out.tab"
+    input:
+    set val(samplename), file(reads) from ch_star
+    file index from star_index.collect()
+    file gtf from gtf_star.collect()
 
-        script:
-                  // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
-                  // --outSAMunmapped Within: In case someone wants the BAM files.
-        """
-        STAR --genomeDir $index \\
-            --sjdbGTFfile $gtf \\
-            --readFilesIn $reads --readFilesCommand zcat \\
-            --runThreadN ${task.cpus} \\
-            --twopassMode Basic \\
-            --outWigType bedGraph \\
-            --outSAMtype BAM SortedByCoordinate \\
-            --outSAMunmapped Within \\
-            --runDirPerm All_RWX \\
-            --quantMode GeneCounts \\
-            --outFileNamePrefix ${samplename}.
+    output:
+    set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
+    file "*.ReadsPerGene.out.tab" into ch_merge_starcounts
+    file "*.out" into ch_alignment_logs
+    file "*.SJ.out.tab"
 
-        """
-    }
-    // Filter removes all 'aligned' channels that fail the check
-    ch_star_accept = Channel.create()
-    ch_star_reject = Channel.create()
+    script:
+              // TODO featurecounts resorts the BAM file; SortedByName is not a STAR option though.
+              // --outSAMunmapped Within: In case someone wants the BAM files.
+    """
+    STAR --genomeDir $index \\
+        --sjdbGTFfile $gtf \\
+        --readFilesIn $reads --readFilesCommand zcat \\
+        --runThreadN ${task.cpus} \\
+        --twopassMode Basic \\
+        --outWigType bedGraph \\
+        --outSAMtype BAM SortedByCoordinate \\
+        --outSAMunmapped Within \\
+        --runDirPerm All_RWX \\
+        --quantMode GeneCounts \\
+        --outFileNamePrefix ${samplename}.
 
-    star_aligned
-        .choice(ch_star_accept, ch_star_reject)
-            { namelogsbams -> check_log(namelogsbams[1]) ? 0 : 1 }
-
-    ch_star_accept
-    .map    { name, logs, bams -> [name, bams] }
-    .into   { ch_featurecounts; ch_indexbam }
-
-    ch_star_reject
-    .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
-    .mix(ch_lostcause_irods)
-    .set    { ch_lostcause }
+    """
 }
+
+  // Filter removes all 'aligned' channels that fail the check
+  ch_star_accept = Channel.create()
+  ch_star_reject = Channel.create()
+
+  star_aligned
+      .choice(ch_star_accept, ch_star_reject)
+          { namelogsbams -> check_log(namelogsbams[1]) ? 0 : 1 }
+
+  ch_star_accept
+  .map    { name, logs, bams -> [name, bams] }
+  .into   { ch_featurecounts; ch_indexbam }
+
+  ch_star_reject
+  .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
+  .mix(ch_lostcause_irods)
+  .set    { ch_lostcause }
 
 
 if(params.aligner == 'salmon'){
@@ -495,7 +523,7 @@ if(params.aligner == 'salmon'){
         publishDir "${params.outdir}/Salmon", mode: 'copy'
 
         input:
-        set val(samplename), file(reads) from ch_reads
+        set val(samplename), file(reads) from ch_salmon
         file index from salmon_index.collect()
         file trans_gene from salmon_trans_gene.collect()
 
@@ -531,151 +559,155 @@ if(params.aligner == 'salmon'){
 
 
 
-if(params.aligner == 'hisat2'){
-    salmon_stdout = Channel.from(false)
-    process hisat2Align {
-        tag "$samplename"
-        publishDir "${params.outdir}/HISAT2", mode: 'copy',
-            saveAs: {filename ->
-                if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
-                else null
-            }
+process hisat2Align {
 
-        input:
-        set val(samplename), file(reads) from ch_reads
-        file hs2_indices from hs2_indices.collect()
-        file alignment_splicesites from alignment_splicesites.collect()
-
-        output:
-        file "${samplename}.bam" into hisat2_bam
-        file "${samplename}.hisat2_summary.txt" into ch_alignment_logs
-        file '.command.log' into hisat_stdout
-
-        script:
-        index_base = hs2_indices[0].toString() - ~/.\d.ht2/
-        def rnastrandness = ''
-        if (forward_stranded && !unstranded){
-            rnastrandness = '--rna-strandness FR'
-        } else if (reverse_stranded && !unstranded){
-            rnastrandness = '--rna-strandness RF'
+    tag "$samplename"
+    publishDir "${params.outdir}/HISAT2", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
+            else null
         }
-        """
-        hisat2 -x $index_base \\
-                -1 ${reads[0]} \\
-                -2 ${reads[1]} \\
-                $rnastrandness \\
-                --known-splicesite-infile $alignment_splicesites \\
-                --no-mixed \\
-                --no-discordant \\
-                -p ${task.cpus} \\
-                --met-stderr \\
-                --new-summary \\
-                --summary-file ${samplename}.hisat2_summary.txt \\
-                | samtools view -bS -F 4 -F 8 -F 256 - > ${samplename}.bam
-        hisat2 --version
-        """
+
+    when:
+    params.aligner == 'hisat2'
+
+    input:
+    set val(samplename), file(reads) from ch_hisat2
+    file hs2_indices from hs2_indices.collect()
+    file alignment_splicesites from alignment_splicesites.collect()
+
+    output:
+    file "${samplename}.bam" into ch_hisat2_bam
+    file "${samplename}.hisat2_summary.txt" into ch_alignment_logs
+    file '.command.log' into hisat_stdout
+
+    script:
+    index_base = hs2_indices[0].toString() - ~/.\d.ht2/
+    def rnastrandness = ''
+    if (forward_stranded && !unstranded){
+        rnastrandness = '--rna-strandness FR'
+    } else if (reverse_stranded && !unstranded){
+        rnastrandness = '--rna-strandness RF'
     }
-
-    process hisat2_sortOutput {
-        tag "${hisat2_bam.baseName}"
-
-        input:
-        file hisat2_bam
-
-        output:
-        set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_featurecounts, ch_indexbam
-
-        script:
-        def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
-        """
-        samtools sort \\
-            $hisat2_bam \\
-            -@ ${task.cpus} $avail_mem \\
-            -o ${hisat2_bam.baseName}.sorted.bam
-        """
-    }
+    """
+    hisat2 -x $index_base \\
+            -1 ${reads[0]} \\
+            -2 ${reads[1]} \\
+            $rnastrandness \\
+            --known-splicesite-infile $alignment_splicesites \\
+            --no-mixed \\
+            --no-discordant \\
+            -p ${task.cpus} \\
+            --met-stderr \\
+            --new-summary \\
+            --summary-file ${samplename}.hisat2_summary.txt \\
+            | samtools view -bS -F 4 -F 8 -F 256 - > ${samplename}.bam
+    hisat2 --version
+    """
 }
 
 
-if(params.aligner != 'salmon') {
-    process featureCounts {
-        tag "${samplename}"
-        publishDir "${params.outdir}/featureCounts", mode: 'copy',
-            saveAs: {filename ->
-                if (filename.indexOf(".biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
-                else if (filename.indexOf(".gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
-                else if (filename.indexOf(".gene.featureCounts.txt") > 0) "gene_counts/$filename"
-                else "$filename"
-            }
+process hisat2_sortOutput {
+    tag "${hisat2_bam.baseName}"
 
-        input:
-        set val(samplename), file(thebam) from ch_featurecounts
-        file gtf from gtf_featureCounts.collect()
-        file biotypes_header
+    input:
+    file hisat2_bam from ch_hisat2_bam
 
-        output:
-        file "*.gene.featureCounts.txt" into ch_merge_fc
-        file "*.gene.featureCounts.txt.summary" into ch_multiqc_fc
-        file "*.biotype_counts*mqc.txt" into ch_multiqc_fcbiotype
+    output:
+    set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_featurecounts, ch_indexbam
 
-        script:
-        def extraparams = params.fcextra.toString() - ~/^dummy/
-        def featureCounts_direction = 0
-        def pairedend = params.singleend ? "" : "-p"
-        if (forward_stranded && !unstranded) {
-            featureCounts_direction = 1
-        } else if (reverse_stranded && !unstranded){
-            featureCounts_direction = 2
+    script:
+    def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
+    """
+    samtools sort \\
+        $hisat2_bam \\
+        -@ ${task.cpus} $avail_mem \\
+        -o ${hisat2_bam.baseName}.sorted.bam
+    """
+}
+
+
+// Old branch params.aligner != salmon {
+// I may run into some channel trouble ..
+
+process featureCounts {
+    tag "${samplename}"
+    publishDir "${params.outdir}/featureCounts", mode: 'copy',
+        saveAs: {filename ->
+            if (filename.indexOf(".biotype_counts_mqc.txt") > 0) "biotype_counts/$filename"
+            else if (filename.indexOf(".gene.featureCounts.txt.summary") > 0) "gene_count_summaries/$filename"
+            else if (filename.indexOf(".gene.featureCounts.txt") > 0) "gene_counts/$filename"
+            else "$filename"
         }
-        """
-        featureCounts -T ${task.cpus} -a $gtf -g gene_id          \\
-          -o ${samplename}.gene.featureCounts.txt $pairedend      \\
-          -s $featureCounts_direction ${extraparams} $thebam
 
-        featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype}  \\
-          -o ${samplename}.biotype.featureCounts.txt $pairedend   \\
-          -s $featureCounts_direction ${extraparams} $thebam
+    input:
+    set val(samplename), file(thebam) from ch_featurecounts
+    file gtf from gtf_featureCounts.collect()
+    file biotypes_header
 
-        cut -f 1,7 ${samplename}.biotype.featureCounts.txt |      \\
-            tail -n +3 | cat $biotypes_header - >> ${samplename}.biotype_counts_mqc.txt
+    output:
+    file "*.gene.featureCounts.txt" into ch_merge_fc
+    file "*.gene.featureCounts.txt.summary" into ch_multiqc_fc
+    file "*.biotype_counts*mqc.txt" into ch_multiqc_fcbiotype
 
-        # Below works, but will require a new NF process for python.
-        # rRNA: ribosomal RNA.
-        # python3 $baseDir/bin/mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
-        """
+    script:
+    def extraparams = params.fcextra.toString() - ~/^dummy/
+    def featureCounts_direction = 0
+    def pairedend = params.singleend ? "" : "-p"
+    if (forward_stranded && !unstranded) {
+        featureCounts_direction = 1
+    } else if (reverse_stranded && !unstranded){
+        featureCounts_direction = 2
     }
+    """
+    featureCounts -T ${task.cpus} -a $gtf -g gene_id          \\
+      -o ${samplename}.gene.featureCounts.txt $pairedend      \\
+      -s $featureCounts_direction ${extraparams} $thebam
 
-    process indexbam {
-        tag "${samplename}"
+    featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype}  \\
+      -o ${samplename}.biotype.featureCounts.txt $pairedend   \\
+      -s $featureCounts_direction ${extraparams} $thebam
 
-        input:
-        set val(samplename), file(thebam) from ch_indexbam
+    cut -f 1,7 ${samplename}.biotype.featureCounts.txt |      \\
+        tail -n +3 | cat $biotypes_header - >> ${samplename}.biotype_counts_mqc.txt
 
-        output:
-        set val(samplename), file("*.idxstats") into ch_mapsummary
+    # Below works, but will require a new NF process for python.
+    # rRNA: ribosomal RNA.
+    # python3 $baseDir/bin/mqc_features_stat.py ${samplename}.biotype_counts_mqc.txt -s $samplename -f rRNA -o ${samplename}.biotype_counts_gs_mqc.tsv
+    """
+}
 
-        """
-        samtools index $thebam
-        samtools idxstats $thebam > ${samplename}.idxstats
-        """
-    }
-    
-    process mapsummary {
-        tag "${samplename}"
-        publishDir "${params.outdir}/mapsummary", mode: 'copy'
+process indexbam {
+    tag "${samplename}"
 
-        input:
-        set val(samplename), file(thestats) from ch_mapsummary
+    input:
+    set val(samplename), file(thebam) from ch_indexbam
 
-        output:
-        file "*_mqc.txt" into ch_multiqc_mapsum
+    output:
+    set val(samplename), file("*.idxstats") into ch_mapsummary
 
-        script:
-        def mito_name = params.mito_name
-        """
-        python $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
-        """
-    }
+    """
+    samtools index $thebam
+    samtools idxstats $thebam > ${samplename}.idxstats
+    """
+}
+
+process mapsummary {
+    tag "${samplename}"
+    publishDir "${params.outdir}/mapsummary", mode: 'copy'
+
+    input:
+    set val(samplename), file(thestats) from ch_mapsummary
+
+    output:
+    file "*_mqc.txt" into ch_multiqc_mapsum
+
+    script:
+    def mito_name = params.mito_name
+    """
+    python $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
+    """
+}
 
 
 // https://www.biostars.org/p/218995/
@@ -684,46 +716,47 @@ if(params.aligner != 'salmon') {
 // column 3: counts for the 1st read strand aligned with RNA (htseq-count option -s yes)
 // column 4: counts for the 2nd read strand aligned with RNA (htseq-count option -s reverse)
 
-    process merge_starcounts {
+process merge_starcounts {
 
-        tag "${input_files[0]}"
-        publishDir "${params.outdir}/combined", mode: 'link'
+    tag "${input_files[0]}"
+    publishDir "${params.outdir}/combined", mode: 'link'
 
-        input:
-        file input_files from ch_merge_starcounts.collect()
+    input:
+    file input_files from ch_merge_starcounts.collect()
 
-        output:
-        file '*-star-genecounts.txt'
+    output:
+    file '*-star-genecounts.txt'
 
-        script:
-        def outputname = "${params.runtag}-star-genecounts.txt"
-        """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          -c 1 --rm-suffix .ReadsPerGene.out.tab                          \\
-          -o $outputname -i $input_files
-        """
-    }
-
-    process merge_featureCounts {
-        tag "${input_files[0]}"
-        publishDir "${params.outdir}/combined", mode: 'link'
-
-        input:
-        file input_files from ch_merge_fc.collect()
-
-        output:
-        file '*-fc-genecounts.txt'
-
-        script:
-        def outputname = "${params.runtag}-fc-genecounts.txt"
-        """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          --rm-suffix .gene.featureCounts.txt                             \\
-          -c -1 --skip-comments --header                                  \\
-          -o $outputname -i $input_files
-        """
-    }
+    script:
+    def outputname = "${params.runtag}-star-genecounts.txt"
+    """
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      -c 1 --rm-suffix .ReadsPerGene.out.tab                          \\
+      -o $outputname -i $input_files
+    """
 }
+
+process merge_featureCounts {
+    tag "${input_files[0]}"
+    publishDir "${params.outdir}/combined", mode: 'link'
+
+    input:
+    file input_files from ch_merge_fc.collect()
+
+    output:
+    file '*-fc-genecounts.txt'
+
+    script:
+    def outputname = "${params.runtag}-fc-genecounts.txt"
+    """
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      --rm-suffix .gene.featureCounts.txt                             \\
+      -c -1 --skip-comments --header                                  \\
+      -o $outputname -i $input_files
+    """
+}
+// Old branch params.aligner != salmon }
+
 
 if(params.aligner == 'salmon'){
     
