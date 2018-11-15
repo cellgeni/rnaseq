@@ -382,13 +382,13 @@ process fastqc {
 
 process mixcr {
     tag "$samplename"
-    publishDir "${params.outdir}/mixcr", mode: 'copy',
-        saveAs: { filename ->
-            if (filename ==~ /.*\.full_clones\.txt/) "clones/$filename"
-            else if (filename ==~ /.*\.clones\.clna/) "clna/$filename"
-            else if (filename ==~ /.*\.alignments\.vdjca/) "vdjca/$filename"
-            else null
-        }
+    publishDir "${params.outdir}/mixcr/$samplename", mode: 'copy'
+    //  saveAs: { filename ->
+    //      if (filename ==~ /.*\.full_clones\.txt/) "clones/$filename"
+    //      else if (filename ==~ /.*\.clones\.clna/) "clna/$filename"
+    //      else if (filename ==~ /.*\.alignments\.vdjca/) "vdjca/$filename"
+    //      else null
+    //  }
     when:
     params.run_mixcr
 
