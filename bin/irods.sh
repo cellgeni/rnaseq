@@ -85,7 +85,7 @@ if [[ $(echo $IMETA_OUTPUT) == 'No rows found' ]]; then
     exit 64
 else
     echo "${IMETA_OUTPUT}" \
-    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print "iget -K -n $(ils -l $1/$2 | awk '/green/ {print $2; exit}') $1/$2\n" }' \
+    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print qq{iget -K -n \$(ils -l $1/$2 | awk "/green/ {print \\\$2; exit}") $1/$2\n} }' \
     | bash -e
 fi
 
