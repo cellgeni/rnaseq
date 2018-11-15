@@ -70,6 +70,7 @@ params.run_multiqc  = true
 params.run_fastqc   = true
 params.run_fcounts  = true                   // feature counts; featureCounts with one of STAR, hisat2, salmon
 params.run_mixcr    = false
+params.save_bam     = false
 
 params.mito_name = 'MT'
 params.unstranded = false
@@ -603,7 +604,7 @@ ch_fc_hisat2
 
 ch_bam_hisat2
   .mix(ch_bam_star)
-  .set{ ch_indexbam }
+  .into{ ch_indexbam; ch_publishbam }
 
 
 // Old branch params.aligner != salmon {
@@ -665,9 +666,29 @@ process indexbam {
     output:
     set val(samplename), file("*.idxstats") into ch_mapsummary
 
+    script:
     """
     samtools index $thebam
     samtools idxstats $thebam > ${samplename}.idxstats
+    """
+}
+
+process publisbam {
+    tag "${samplename}"
+    publishDir "${params.outdir}/${params.aligner}-bams/", mode: 'link',
+      saveAs: { filename -> "${samplename.md5()[-1..-2]}/$samplename/$filename" }
+
+    when:
+    params.save_bam
+
+    input:
+    set val(samplename), file(thebam) from ch_publishbam
+
+    output:
+    file(thebam)
+
+    script:
+    """
     """
 }
 
