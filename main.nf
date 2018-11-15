@@ -58,19 +58,20 @@ params.fcextra = ""                          // feature counts extra parameters;
 params.singleend = false
 
 
-params.scratch = false
 params.runtag  = "cgirnaseq"                 // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
 params.project = false
 params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
-params.skip_qc = false
-params.skip_rnaseq = false
-params.add_mixcr = false
+
+params.run_qc       = true
+params.run_multiqc  = true
+params.run_fastqc   = true
+params.run_fcounts  = true                   // feature counts; featureCounts with one of STAR, hisat2, salmon
+params.run_mixcr    = false
+
 params.mito_name = 'MT'
-params.skip_multiqc = false
-params.skip_fastqc = false
 params.unstranded = false
 params.star_index = params.genome ? params.genomes[ params.genome ].star ?: false : false
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
@@ -308,9 +309,9 @@ if (params.studyid > 0) {
 process crams_to_fastq {
     tag "${samplename}"
 
-    if (params.scratch) {
-       scratch true
-    }
+//  if (params.scratch) {    // This is tricky; need to get job requirements correct to ensure space exists.
+//     scratch true          // At the moment we don't use this. Perhaps with a retry regime ... but a lot of fuss to solve.
+//  }                        // I've left it as a reminder it's an option (svd).
 
     input: 
         set val(samplename), file(crams) from ch_cram_files
@@ -355,7 +356,7 @@ ch_fastqs_cram
   .into{ ch_rnaseq; ch_fastqc; ch_mixcr }
 
 ch_rnaseq
-  .until{ params.skip_rnaseq }
+  .until{ ! params.run_fcounts }
   .into { ch_star; ch_hisat2; ch_salmon }
 
 
@@ -365,7 +366,7 @@ process fastqc {
         saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
     when:
-    !params.skip_qc && !params.skip_fastqc
+    params.run_qc && params.run_fastqc
 
     input:
     set val(samplename), file(reads) from ch_fastqc
@@ -381,19 +382,23 @@ process fastqc {
 
 process mixcr {
     tag "$samplename"
-    publishDir "${params.outdir}/mixcr", mode: 'copy'
-
+    publishDir "${params.outdir}/mixcr", mode: 'copy',
+        saveAs: { filename ->
+            if (filename ==~ /.*\.full_clones\.txt/) "clones/$filename"
+            else if (filename ==~ /.*\.clones\.clna/) "clna/$filename"
+            else if (filename ==~ /.*\.alignments\.vdjca/) "vdjca/$filename"
+            else null
+        }
     when:
-    params.add_mixcr
+    params.run_mixcr
 
     input:
     set val(samplename), file(reads) from ch_mixcr
 
     output:
     file("*full_clones.txt")
-
-    // file("*.clones.clna")
-    // file("*.vdjca")
+    file("*.clones.clna")
+    file("*.vdjca")
 
     script:
     """
@@ -736,35 +741,31 @@ process merge_featureCounts {
 // Old branch params.aligner != salmon }
 
 
-if(params.aligner == 'salmon'){
-    
-    process mergeSalmonCounts {
-        tag "${input_trans[0]}"
-        publishDir "${params.outdir}/combined", mode: 'link'
+process mergeSalmonCounts {
+    tag "${input_trans[0]}"
+    publishDir "${params.outdir}/combined", mode: 'link'
 
-        input:
-        file input_trans from ch_salmon_trans.collect()
-        file input_genes from ch_salmon_genes.collect()
+    input:
+    file input_trans from ch_salmon_trans.collect()
+    file input_genes from ch_salmon_genes.collect()
 
-        output:
-        file '*counts.txt'
+    output:
+    file '*counts.txt'
 
-        script:
-        def outtransname = "${params.runtag}-salmon-transcounts.txt"
-        def outgenesname = "${params.runtag}-salmon-genecounts.txt"
-        """
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          --rm-suffix _1.quant.genes.sf                                   \\
-          -c -1 --skip-comments --header                                  \\
-          -o $outgenesname -i $input_genes
-        python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-          --rm-suffix _1.quant.sf                                         \\
-          -c -1 --skip-comments --header                                  \\
-          -o $outtransname -i $input_trans
-        """
-    }
+    script:
+    def outtransname = "${params.runtag}-salmon-transcounts.txt"
+    def outgenesname = "${params.runtag}-salmon-genecounts.txt"
+    """
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      --rm-suffix _1.quant.genes.sf                                   \\
+      -c -1 --skip-comments --header                                  \\
+      -o $outgenesname -i $input_genes
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      --rm-suffix _1.quant.sf                                         \\
+      -c -1 --skip-comments --header                                  \\
+      -o $outtransname -i $input_trans
+    """
 }
-
 
 process lostcause {
 
@@ -796,7 +797,7 @@ process multiqc {
       }
 
     when:
-    !params.skip_multiqc
+    params.run_multiqc
 
     input:
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
