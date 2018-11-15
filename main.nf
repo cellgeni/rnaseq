@@ -381,16 +381,10 @@ process fastqc {
 }
 
 process mixcr {
-    tag "$samplename"
-    publishDir "${params.outdir}/mixcr/$bucket/$samplename", mode: 'copy'
-    def bucket = samplename.md5()[-1..-2]
+    tag {samplename}
+    publishDir "${params.outdir}/mixcr/", mode: 'copy',
+      saveAs: { filename -> "${samplename.md5()[-1..-2]}/$samplename/$filename" }
 
-    //  saveAs: { filename ->
-    //      if (filename ==~ /.*\.full_clones\.txt/) "clones/$filename"
-    //      else if (filename ==~ /.*\.clones\.clna/) "clna/$filename"
-    //      else if (filename ==~ /.*\.alignments\.vdjca/) "vdjca/$filename"
-    //      else null
-    //  }
     when:
     params.run_mixcr
 
