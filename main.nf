@@ -775,7 +775,8 @@ process lostcause {
     file (inputs) from ch_lostcause.collect().ifEmpty([])
 
     output:
-    file ('*.lostcause_mqc.txt') into ch_multiqc_lostcause
+    file('*.lostcause_mqc.txt') into ch_multiqc_lostcause
+    file('*.lostcause.txt')
 
     script:
     def outputname = "${params.runtag}.${workflow.runName}.lostcause_mqc.txt"
@@ -797,7 +798,7 @@ process multiqc {
       }
 
     when:
-    params.run_multiqc
+    params.run_qc && params.run_multiqc
 
     input:
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
