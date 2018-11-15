@@ -776,7 +776,6 @@ process lostcause {
 
     output:
     file('*.lostcause_mqc.txt') into ch_multiqc_lostcause
-    file('*.lostcause.txt')
 
     script:
     def outputname = "${params.runtag}.${workflow.runName}.lostcause_mqc.txt"
