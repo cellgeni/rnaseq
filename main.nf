@@ -248,17 +248,18 @@ try {
  * fastq files, or to Sanger sample IDs in IRODS.
 */
 
-sample_list = Channel.fromPath(params.samplefile)
+Channel.fromPath(params.samplefile)
+.into { sample_list_irods; sample_list_dirpe; sample_list_dirse }
 
 
 process irods {
     tag "${samplename}"
 
     when:
-      params.study_id > 0
+      params.studyid > 0
 
     input: 
-        val samplename from sample_list.flatMap{ it.readLines() }
+        val samplename from sample_list_irods.flatMap{ it.readLines() }
 
     output: 
         set val(samplename), file('*.cram') optional true into ch_cram_files
@@ -285,9 +286,9 @@ process get_fastq_files_single {
     params.fastqdir && params.singleend
 
     input:
-        val samplename from sample_list.flatMap{ it.readLines() }
+        val samplename from sample_list_dirse.flatMap{ it.readLines() }
     output:
-        set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dir
+        set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
     script:
     """
     name=${params.fastqdir}/${samplename}.fastq.gz
@@ -308,9 +309,9 @@ process get_fastq_files {
     params.fastqdir && !params.singleend
 
     input:
-        val samplename from sample_list.flatMap{ it.readLines() }
+        val samplename from sample_list_dirpe.flatMap{ it.readLines() }
     output:
-        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dir
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
     script:
     """
     list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
@@ -335,7 +336,7 @@ process crams_to_fastq {
     input: 
         set val(samplename), file(crams) from ch_cram_files
     output: 
-        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_cram
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_irods
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
@@ -370,8 +371,8 @@ process crams_to_fastq {
 }
 
 
-ch_fastqs_cram
-  .mix(ch_fastqs_dir)
+ch_fastqs_irods
+  .mix(ch_fastqs_dirpe, ch_fastqs_dirse)
   .into{ ch_rnaseq; ch_fastqc; ch_mixcr }
 
 ch_rnaseq
