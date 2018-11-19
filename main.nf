@@ -154,6 +154,20 @@ ch_tmp = params.aligner == 'hisat2' && params.splicesites
 ch_tmp.set { alignment_splicesites }
 
 
+if (params.studyid > 0) {
+    // ch_fastqs_dir = Channel.empty()
+} else if (params.fastqdir) {
+    // ch_cram_files = Channel.empty()
+    // ch_lostcause_irods = Channel.empty()
+    if (params.singleend) {
+    }
+    else {
+    }
+} else {
+  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
+}
+
+
 // Has the run name been specified by the user?
 //  this has the bonus effect of catching both -name and --name
 custom_runName = params.name
@@ -230,80 +244,84 @@ try {
 
 
 /*
- * Create a channel for input sample ids
- */
+ * The channel for input sample ids. This can either refer to a file names in a directory with
+ * fastq files, or to Sanger sample IDs in IRODS.
+*/
+
 sample_list = Channel.fromPath(params.samplefile)
 
-if (params.studyid > 0) {
-    ch_fastqs_dir = Channel.empty()
-    process irods {
-        tag "${samplename}"
 
-        input: 
-            val samplename from sample_list.flatMap{ it.readLines() }
+process irods {
+    tag "${samplename}"
 
-        output: 
-            set val(samplename), file('*.cram') optional true into ch_cram_files
-            file('*.lostcause.txt') optional true into ch_lostcause_irods
+    when:
+      params.study_id > 0
 
-        script:
-        """
-        if bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}; then
-          true
-        else
-          stat=\$?
-          tag='UNKNOWN'
-          if [[ \$stat == 64 ]]; then tag='nofiles'; fi
-          echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
-        fi
-        """
-    }
-} else if (params.fastqdir) {
-    ch_cram_files = Channel.empty()
-    ch_lostcause_irods = Channel.empty()
-    if (params.singleend) {
-      process get_fastq_files_single {
-          tag "$samplename"
+    input: 
+        val samplename from sample_list.flatMap{ it.readLines() }
 
-          input:
-              val samplename from sample_list.flatMap{ it.readLines() }
-          output:
-              set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dir
-          script:
-          """
-          name=${params.fastqdir}/${samplename}.fastq.gz
-          if [[ ! -e \$name ]]; then
-            echo "Count file \$name not found"
-            false
-          else
-            ln -s \$name .
-          fi
-          """
-      }
-    }
-    else {
-      process get_fastq_files {
-          tag "${samplename}"
+    output: 
+        set val(samplename), file('*.cram') optional true into ch_cram_files
+        file('*.lostcause.txt') optional true into ch_lostcause_irods
 
-          input:
-              val samplename from sample_list.flatMap{ it.readLines() }
-          output:
-              set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dir
-          script:
-          """
-          list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
-          if [[ 2 == \${#list[@]} ]]; then
-            ln -s \${list[0]} .
-            ln -s \${list[1]} .
-          else
-            echo "Count mismatch sample ${samplename} found (\${list[@]})"
-            false
-          fi
-          """
-      }
-    }
-} else {
-  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
+    script:
+    """
+    if bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}; then
+      true
+    else
+      stat=\$?
+      tag='UNKNOWN'
+      if [[ \$stat == 64 ]]; then tag='nofiles'; fi
+      echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
+    fi
+    """
+}
+
+
+process get_fastq_files_single {
+    tag "$samplename"
+
+    when:
+    params.fastqdir && params.singleend
+
+    input:
+        val samplename from sample_list.flatMap{ it.readLines() }
+    output:
+        set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dir
+    script:
+    """
+    name=${params.fastqdir}/${samplename}.fastq.gz
+    if [[ ! -e \$name ]]; then
+      echo "Count file \$name not found"
+      false
+    else
+      ln -s \$name .
+    fi
+    """
+}
+
+
+process get_fastq_files {
+    tag "${samplename}"
+
+    when:
+    params.fastqdir && !params.singleend
+
+    input:
+        val samplename from sample_list.flatMap{ it.readLines() }
+    output:
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dir
+    script:
+    """
+    list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
+    if [[ 2 == \${#list[@]} ]]; then
+      ln -s \${list[0]} .
+      ln -s \${list[1]} .
+    else
+      echo "Count mismatch sample ${samplename} found (\${list[@]})"
+      false
+    fi
+    """
 }
 
 
