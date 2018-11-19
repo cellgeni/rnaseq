@@ -28,7 +28,7 @@ def helpMessage() {
 
     Mandatory arguments:
       --genome                      Name of iGenomes reference
-      -profile                      Hardware config to use. farm3 / farm4 / openstack / docker / aws
+      -profile                      Hardware config to use. farm3 / farm4 / docker
 
     Strandedness:
       --forward_stranded            The library is forward stranded
@@ -100,29 +100,32 @@ unstranded = params.unstranded
 
 
 
+if (params.studyid < 0 && !params.fastqdir) {
+  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
+}
+
 params.aligner = 'star'
 if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 'salmon'){
     exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
 }
 
 
-if( params.star_index && params.aligner == 'star' ){
-    star_index = Channel
-        .fromPath(params.star_index)
-        .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
-}
+ch_star_index = params.star_index && params.aligner == 'star'
+    ? Channel.fromPath(params.star_index)
+      .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
+    : Channel.empty()
 
-hs2_indices = params.hisat2_index && params.aligner == 'hisat2'
+ch_hs2_indices = params.hisat2_index && params.aligner == 'hisat2'
     ? Channel.fromPath("${params.hisat2_index}*")
       .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
     : Channel.empty()
 
-salmon_index = params.salmon_index && params.aligner == 'salmon'
+ch_salmon_index = params.salmon_index && params.aligner == 'salmon'
     ? Channel.fromPath(params.salmon_index)
        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
     : Channel.empty()
 
-salmon_trans_gene = params.salmon_trans_gene && params.aligner == 'salmon'
+ch_salmon_trans_gene = params.salmon_trans_gene && params.aligner == 'salmon'
     ?  Channel.fromPath(params.salmon_trans_gene)
        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
     : Channel.empty()
@@ -152,20 +155,6 @@ ch_tmp = params.aligner == 'hisat2' && params.splicesites
     .ifEmpty { exit 1, "HISAT2 splice sites file not found: $params.bed12" }
   : Channel.empty()
 ch_tmp.set { alignment_splicesites }
-
-
-if (params.studyid > 0) {
-    // ch_fastqs_dir = Channel.empty()
-} else if (params.fastqdir) {
-    // ch_cram_files = Channel.empty()
-    // ch_lostcause_irods = Channel.empty()
-    if (params.singleend) {
-    }
-    else {
-    }
-} else {
-  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
-}
 
 
 // Has the run name been specified by the user?
@@ -461,7 +450,7 @@ process star {
 
     input:
     set val(samplename), file(reads) from ch_star
-    file index from star_index.collect()
+    file index from ch_star_index.collect()
     file gtf from gtf_star.collect()
 
     output:
@@ -516,8 +505,8 @@ process salmon {
 
     input:
     set val(samplename), file(reads) from ch_salmon
-    file index from salmon_index.collect()
-    file trans_gene from salmon_trans_gene.collect()
+    file index from ch_salmon_index.collect()
+    file trans_gene from ch_salmon_trans_gene.collect()
 
     output:
     file "${prefix}.quant.sf" into ch_salmon_trans
@@ -563,7 +552,7 @@ process hisat2Align {
 
     input:
     set val(samplename), file(reads) from ch_hisat2
-    file hs2_indices from hs2_indices.collect()
+    file hs2_indices from ch_hs2_indices.collect()
     file alignment_splicesites from alignment_splicesites.collect()
 
     output:
