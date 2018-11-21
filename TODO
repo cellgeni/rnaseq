@@ -1,0 +1,28 @@
+
+
+====== general
+
+-  use channel instead of publishbam process, subscribe with mklink hard=true
+
+====== hisat2 (salmon)
+
+-  enable simultaneous hisat2 run with star (similar salmon)
+
+-  check_logs equivalent for hisat2
+
+- -m hisat2 for multiQC?
+
+-  hisat2 mode may need time before it is ready to go, it is in need of an MOT.
+-  check places where I built indexes for STAR and hisat2; save scripts/settings
+      Done:
+      rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
+      rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
+
+====== lostcause
+
+-  lostcause: add file size check in crams_to_fastq
+
+-  hopefully use future NF functionality in
+      https://github.com/nextflow-io/nextflow/issues/903
+
+
