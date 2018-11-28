@@ -70,6 +70,8 @@ params.run_multiqc  = true
 params.run_fastqc   = true
 params.run_fcounts  = true                   // feature counts; featureCounts with one of STAR, hisat2, salmon
 params.run_mixcr    = false
+params.run_star     = true
+params.run_hisat2   = true
 params.save_bam     = false
 
 params.mito_name = 'MT'
@@ -83,9 +85,8 @@ params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : fa
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.splicesites = false
+params.splicesites = true
 params.download_hisat2index = false
-params.download_fasta = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
@@ -109,15 +110,13 @@ if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 
     exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
 }
 
+if (params.run_hisat2 && !params.hisat2_index) {
+    exit 1, "No hisat2 index"
+}
 
-ch_star_index = params.star_index && params.aligner == 'star'
+ch_star_index = params.run_star
     ? Channel.fromPath(params.star_index)
       .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
-    : Channel.empty()
-
-ch_hs2_indices = params.hisat2_index && params.aligner == 'hisat2'
-    ? Channel.fromPath("${params.hisat2_index}*")
-      .ifEmpty { exit 1, "HISAT2 index not found: ${params.hisat2_index}" }
     : Channel.empty()
 
 ch_salmon_index = params.salmon_index && params.aligner == 'salmon'
@@ -130,6 +129,16 @@ ch_salmon_trans_gene = params.salmon_trans_gene && params.aligner == 'salmon'
        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
     : Channel.empty()
 
+ch_hs2_indices = params.run_hisat2
+    ? Channel.fromPath("${params.hisat2_index}/*.?.ht2")
+      .ifEmpty { exit 1, "HISAT2 index files not found from $params.hisat2_index" }
+    : Channel.empty()
+
+ch_hisat2_splicesites = params.run_hisat2
+  ? Channel.fromPath("${params.hisat2_index}/*hisat2_splice_sites.txt")
+    .ifEmpty { exit 1, "HISAT2 splice sites file not found in $params.hisat2_index" }
+  : Channel.empty()
+
 if ( params.dna ){
     f = file(params.dna)
     if( !f.exists() ) exit 1, "Fasta file not found: ${params.dna}"
@@ -138,23 +147,12 @@ if ( params.cdna ){
     f = file(params.cdna)
     if( !f.exists() ) exit 1, "cdna file not found: ${params.cdna}"
 }
-if ( ( params.aligner == 'hisat2' && !params.download_hisat2index ) && !params.download_fasta ){
-    exit 1, "No reference genome specified!"
-}
 
 if( params.gtf ){
-    Channel
-        .fromPath(params.gtf)
+    Channel.fromPath(params.gtf)
         .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
-        .into { gtf_makeSTARindex; gtf_makeHisatSplicesites; gtf_makeHISATindex; gtf_makeBED12;
-              gtf_star; gtf_dupradar; gtf_featureCounts; gtf_stringtieFPKM }
+        .into { ch_gtf_star; ch_gtf_featureCounts; }
 }
-
-ch_tmp = params.aligner == 'hisat2' && params.splicesites
-  ?  Channel.fromPath(params.bed12)
-    .ifEmpty { exit 1, "HISAT2 splice sites file not found: $params.bed12" }
-  : Channel.empty()
-ch_tmp.set { alignment_splicesites }
 
 
 // Has the run name been specified by the user?
@@ -170,47 +168,41 @@ log.info "========================================="
 log.info "         RNASeq pipeline v${version}"
 log.info "========================================="
 def summary = [:]
-summary['Run Name']     = custom_runName ?: workflow.runName
-summary['Sample file']  = params.samplefile
-summary['Data Type']    = 'Paired-End'
-summary['Genome']       = params.genome
-summary['Biotype tag']  = gene_biotype
-summary['Strandedness'] = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
-if(params.aligner == 'star'){
-    summary['Aligner'] = "STAR"
-    if(params.star_index)          summary['STAR Index']   = params.star_index
-    else if(params.dna)          summary['Fasta Ref']    = params.dna
-    else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
+summary['Run Name']           = custom_runName ?: workflow.runName
+summary['Sample file']        = params.samplefile
+summary['Data Type']          = 'Paired-End'
+summary['Genome']             = params.genome
+summary['Biotype tag']        = gene_biotype
+summary['Strandedness']       = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
+if(params.run_star) {
+  summary['STAR Index']       = params.star_index
 }
 if(params.aligner == 'salmon'){
-    summary['Aligner'] = "Salmon"
-    summary['Salmon Index']   = params.salmon_index
-    if(params.salmon_index)          summary['Salmon Index']   = params.salmon_index
-    else if(params.dna)          summary['Fasta Ref']    = params.dna
-    else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
-} 
-if(params.aligner == 'hisat2') {
-    summary['Aligner'] = "HISAT2"
-    if(params.hisat2_index)        summary['HISAT2 Index'] = params.hisat2_index
-    else if(params.download_hisat2index) summary['HISAT2 Index'] = params.download_hisat2index
-    else if(params.dna)          summary['Fasta Ref']    = params.dna
-    else if(params.download_fasta) summary['Fasta URL']    = params.download_fasta
-    if(params.splicesites)         summary['Splice Sites'] = params.splicesites
+  summary['Salmon Index']     = params.salmon_index
 }
-if(params.gtf)                 summary['GTF Annotation']  = params.gtf
-if(params.bed12)               summary['BED Annotation']  = params.bed12
-summary['Max Memory']     = params.max_memory
-summary['Max CPUs']       = params.max_cpus
-summary['Max Time']       = params.max_time
-summary['Output dir']     = params.outdir
-summary['Working dir']    = workflow.workDir
-summary['Container']      = workflow.container
-if(workflow.revision) summary['Pipeline Release'] = workflow.revision
-summary['Current home']   = "$HOME"
-summary['Current path']   = "$PWD"
-summary['Script dir']     = workflow.projectDir
-summary['Config Profile'] = workflow.profile
-if(params.project) summary['UPPMAX Project'] = params.project
+if(params.run_hisat2) {
+  summary['HISAT2 Index']     = params.hisat2_index
+  summary['HISAT2 Splice Sites'] = params.splicesites
+}
+if(params.gtf)
+  summary['GTF Annotation']   = params.gtf
+if(params.bed12)
+  summary['BED Annotation']   = params.bed12
+summary['Max Memory']         = params.max_memory
+summary['Max CPUs']           = params.max_cpus
+summary['Max Time']           = params.max_time
+summary['Output dir']         = params.outdir
+summary['Working dir']        = workflow.workDir
+summary['Container']          = workflow.container
+summary['Current home']       = "$HOME"
+summary['Current path']       = "$PWD"
+summary['Script dir']         = workflow.projectDir
+summary['Config Profile']     = workflow.profile
+if(params.project)
+  summary['Cellgen Project']  = params.project
+if(workflow.revision)
+  summary['Pipeline Release'] = workflow.revision
+
 log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
@@ -366,7 +358,7 @@ ch_fastqs_irods
 
 ch_rnaseq
   .until{ ! params.run_fcounts }
-  .into { ch_star; ch_hisat2; ch_salmon }
+  .into { ch_hisat2; ch_star; ch_salmon }
 
 
 process fastqc {
@@ -417,8 +409,10 @@ process mixcr {
 
 // Function that checks the alignment rate of the STAR output
 // and returns true if the alignment passed and otherwise false
-skipped_poor_alignment = []
-def check_log(logs) {
+
+n_star_lowmapping = 0
+
+def star_filter(logs) {
     def percent_aligned = 0;
     logs.eachLine { line ->
         if ((matcher = line =~ /Uniquely mapped reads %\s*\|\s*([\d\.]+)%/)) {
@@ -427,14 +421,25 @@ def check_log(logs) {
     }
     logname = logs.getBaseName() - 'Log.final'
     if(percent_aligned.toFloat() <= '5'.toFloat() ){
-        log.info "#################### VERY POOR ALIGNMENT RATE! IGNORING FOR FURTHER DOWNSTREAM ANALYSIS! ($logname)    >> ${percent_aligned}% <<"
-        skipped_poor_alignment << logname
+        n_star_lowmapping++
         return false
     } else {
-        log.info "          Passed alignment > star ($logname)   >> ${percent_aligned}% <<"
         return true
     }
 }
+
+
+// Currently this prefers star if both star and hisat2 are run, otherwise takes hisat2
+// This is for processes that we only want to run for one aligner, not both;
+// For example when publishing bams, or pushing bams to multiqc.
+
+def pick_aligner(aligner) {
+    return
+      aligner == 'star' || (!params.run_star && aligner == 'hisat2')
+    ? true
+    : false
+}
+
 
 process star {
     tag "$samplename"
@@ -446,12 +451,12 @@ process star {
         }
 
     when:
-    params.aligner == 'star'
+    params.run_star
 
     input:
     set val(samplename), file(reads) from ch_star
     file index from ch_star_index.collect()
-    file gtf from gtf_star.collect()
+    file gtf from ch_gtf_star.collect()
 
     output:
     set val(samplename), file("*Log.final.out"), file ('*.bam') into star_aligned
@@ -484,10 +489,10 @@ process star {
 
   star_aligned
       .choice(ch_star_accept, ch_star_reject)
-          { namelogsbams -> check_log(namelogsbams[1]) ? 0 : 1 }
+          { namelogsbams -> star_filter(namelogsbams[1]) ? 0 : 1 }
 
   ch_star_accept
-  .map    { name, logs, bams -> [name, bams] }
+  .map    { name, logs, bams -> ["star", name, bams] }
   .into   { ch_fc_star; ch_bam_star }
 
   ch_star_reject
@@ -541,27 +546,28 @@ process salmon {
 process hisat2Align {
 
     tag "$samplename"
+
     publishDir "${params.outdir}/HISAT2", mode: 'copy',
         saveAs: {filename ->
-            if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/$filename"
+            if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/hisat2/$filename"
             else null
         }
 
     when:
-    params.aligner == 'hisat2'
+    params.run_hisat2
 
     input:
     set val(samplename), file(reads) from ch_hisat2
-    file hs2_indices from ch_hs2_indices.collect()
-    file alignment_splicesites from alignment_splicesites.collect()
+    file indices from ch_hs2_indices.collect()
+    file alignment_splicesites from ch_hisat2_splicesites.collect()
 
     output:
-    file "${samplename}.bam" into ch_hisat2_bam
+    set val(samplename), file("${samplename}.bam") into ch_hisat2_bam
     file "${samplename}.hisat2_summary.txt" into ch_alignment_logs_hisat2
     file '.command.log' into hisat_stdout
 
     script:
-    index_base = hs2_indices[0].toString() - ~/.\d.ht2/
+    def index_base = indices[0].toString() - ~/.\d.ht2/
     def rnastrandness = ''
     if (forward_stranded && !unstranded){
         rnastrandness = '--rna-strandness FR'
@@ -586,22 +592,25 @@ process hisat2Align {
 }
 
 
+// TODO; any reason not to merge this with the process above?
 process hisat2_sortOutput {
-    tag "${hisat2_bam.baseName}"
+
+    tag "$samplename"
 
     input:
-    file hisat2_bam from ch_hisat2_bam
+    set val(samplename), file(hisat2_bam) from ch_hisat2_bam
 
     output:
-    set val($samplename), file("${hisat2_bam.baseName}.sorted.bam") into ch_fc_hisat2, ch_bam_hisat2
+    set val("hisat2"), val(samplename), file("${samplename}.hs2.sorted.bam") into ch_fc_hisat2, ch_bam_hisat2
 
     script:
     def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
+
     """
     samtools sort \\
         $hisat2_bam \\
         -@ ${task.cpus} $avail_mem \\
-        -o ${hisat2_bam.baseName}.sorted.bam
+        -o ${samplename}.hs2.sorted.bam
     """
 }
 
@@ -615,9 +624,6 @@ ch_bam_hisat2
   .into{ ch_indexbam; ch_publishbam }
 
 
-// Old branch params.aligner != salmon {
-// I may run into some channel trouble ..
-
 process featureCounts {
     tag "${samplename}"
     publishDir "${params.outdir}/featureCounts", mode: 'copy',
@@ -629,35 +635,38 @@ process featureCounts {
         }
 
     input:
-    set val(samplename), file(thebam) from ch_featurecounts
-    file gtf from gtf_featureCounts.collect()
+    set val(aligner), val(samplename), file(thebam) from ch_featurecounts
+    file gtf from ch_gtf_featureCounts.collect()
     file biotypes_header
 
     output:
-    file "*.gene.featureCounts.txt" into ch_merge_fc
-    file "*.gene.featureCounts.txt.summary" into ch_multiqc_fc
-    file "*.biotype_counts*mqc.txt" into ch_multiqc_fcbiotype
+    set val(aligner), file("*.gene.fc.txt") into ch_merge_fc
+              // currentpos: this leads to conflicts in multiqc.
+    set val(aligner), file("*.gene.fc.txt.summary") into ch_multiqc_fc
+    set val(aligner), file("*.biotype_counts*mqc.txt") into ch_multiqc_fcbiotype
 
     script:
     def extraparams = params.fcextra.toString() - ~/^dummy/
-    def featureCounts_direction = 0
+    def fc_direction = 0
+    def tag = "${samplename}.${aligner}"
+
     def pairedend = params.singleend ? "" : "-p"
     if (forward_stranded && !unstranded) {
-        featureCounts_direction = 1
+        fc_direction = 1
     } else if (reverse_stranded && !unstranded){
-        featureCounts_direction = 2
+        fc_direction = 2
     }
     """
     featureCounts -T ${task.cpus} -a $gtf -g gene_id          \\
-      -o ${samplename}.gene.featureCounts.txt $pairedend      \\
-      -s $featureCounts_direction ${extraparams} $thebam
+      -o ${tag}.gene.fc.txt $pairedend                        \\
+      -s $fc_direction ${extraparams} $thebam
 
     featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype}  \\
-      -o ${samplename}.biotype.featureCounts.txt $pairedend   \\
-      -s $featureCounts_direction ${extraparams} $thebam
+      -o ${tag}.biotype.fc.txt $pairedend                     \\
+      -s $fc_direction ${extraparams} $thebam
 
-    cut -f 1,7 ${samplename}.biotype.featureCounts.txt |      \\
-        tail -n +3 | cat $biotypes_header - >> ${samplename}.biotype_counts_mqc.txt
+    cut -f 1,7 ${tag}.biotype.fc.txt |                        \\
+        tail -n +3 | cat $biotypes_header - >> ${tag}.biotype_counts_mqc.txt
 
     # Below works, but will require a new NF process for python.
     # rRNA: ribosomal RNA.
@@ -665,11 +674,16 @@ process featureCounts {
     """
 }
 
+
+// Note: we lose information about the used aligner currently.
 process indexbam {
     tag "${samplename}"
 
+    when:
+    pick_aligner(aligner)
+
     input:
-    set val(samplename), file(thebam) from ch_indexbam
+    set val(aligner), val(samplename), file(thebam) from ch_indexbam
 
     output:
     set val(samplename), file("*.idxstats") into ch_mapsummary
@@ -681,6 +695,21 @@ process indexbam {
     """
 }
 
+
+ch_publishbam
+  .subscribe {
+      aligner = it[0]
+      samplename = it[1]
+      filename = it[2]
+      if (pick_aligner(aligner)) {
+        myfile = file("$filename")
+        dir = "${params.outdir}/${aligner}-bams"
+        myfile.copyTo("$dir/${samplename.md5()[-1..-2]}/$samplename/$filename.baseName")
+      }
+  }
+
+
+if (false) {
 process publisbam {
     tag "${samplename}"
     publishDir "${params.outdir}/${params.aligner}-bams/", mode: 'link',
@@ -698,7 +727,7 @@ process publisbam {
     script:
     """
     """
-}
+} }
 
 process mapsummary {
     tag "${samplename}"
@@ -744,18 +773,25 @@ process merge_starcounts {
     """
 }
 
+
+ch_merge_fc
+  .transpose()
+  .groupTuple()
+  .set{ ch_merge_fc_byaligner }
+
+
 process merge_featureCounts {
     tag "${input_files[0]}"
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    file input_files from ch_merge_fc.collect()
+    set val(aligner), file(input_files) from ch_merge_fc_byaligner
 
     output:
     file '*-fc-genecounts.txt'
 
     script:
-    def outputname = "${params.runtag}-fc-genecounts.txt"
+    def outputname = "${params.runtag}-${aligner}-fc-genecounts.txt"
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .gene.featureCounts.txt                             \\
@@ -812,6 +848,16 @@ process lostcause {
 }
 
 
+ch_multiqc_fc
+  .filter{ pick_aligner(it[0]) }
+  .map { it[1] }
+  .set{ ch_multiqc_fc_hisat2 }
+
+ch_multiqc_fcbiotype
+  .filter{ pick_aligner(it[0]) }
+  .map{ it[1] }
+  .set{ ch_multiqc_fcbiotype_hisat2 }
+
 process multiqc {
 
     publishDir "${params.outdir}", mode: 'link',
@@ -828,8 +874,8 @@ process multiqc {
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
     file (fastqc:'fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
     file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
-    file ('featureCounts/*') from ch_multiqc_fc.collect().ifEmpty([])
-    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype.collect().ifEmpty([])
+    file ('featureCounts/*') from ch_multiqc_fc_hisat2.collect().ifEmpty([])
+    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype_hisat2.collect().ifEmpty([])
     file ('star/*') from ch_alignment_logs_star.collect().ifEmpty([])
     file ('hisat2/*') from ch_alignment_logs_hisat2.collect().ifEmpty([])
 
@@ -863,6 +909,17 @@ Git info: $workflow.repository - $workflow.revision [$workflow.commitId]
 Cmd line: $workflow.commandLine
 EOF
     """
+}
+
+
+workflow.onComplete {
+
+    summary = [:]
+    summary['star low mapping'] = n_star_lowmapping
+
+    log.info "========================================="
+    log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
+    log.info "========================================="
 }
 
 
