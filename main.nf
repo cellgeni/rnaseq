@@ -38,6 +38,10 @@ def helpMessage() {
     Other options:
       --outdir                      The output directory where the results will be saved
       --runtag                      Tag for outputs
+      --run_star
+      --run_hisat2
+      --run_salmon
+      --run_mixcr
     """.stripIndent()
 }
 
@@ -72,6 +76,7 @@ params.run_fcounts  = true                   // feature counts; featureCounts wi
 params.run_mixcr    = false
 params.run_star     = true
 params.run_hisat2   = true
+params.run_salmon   = false
 params.save_bam     = false
 
 params.mito_name = 'MT'
@@ -119,12 +124,12 @@ ch_star_index = params.run_star
       .ifEmpty { exit 1, "STAR index not found: ${params.star_index}" }
     : Channel.empty()
 
-ch_salmon_index = params.salmon_index && params.aligner == 'salmon'
+ch_salmon_index = params.run_salmon
     ? Channel.fromPath(params.salmon_index)
        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_index}" }
     : Channel.empty()
 
-ch_salmon_trans_gene = params.salmon_trans_gene && params.aligner == 'salmon'
+ch_salmon_trans_gene = params.run_salmon
     ?  Channel.fromPath(params.salmon_trans_gene)
        .ifEmpty { exit 1, "Salmon index not found: ${params.salmon_trans_gene}" }
     : Channel.empty()
@@ -177,7 +182,7 @@ summary['Strandedness']       = ( unstranded ? 'None' : forward_stranded ? 'Forw
 if(params.run_star) {
   summary['STAR Index']       = params.star_index
 }
-if(params.aligner == 'salmon'){
+if(params.run_salmon) {
   summary['Salmon Index']     = params.salmon_index
 }
 if(params.run_hisat2) {
@@ -433,11 +438,11 @@ def star_filter(logs) {
 // This is for processes that we only want to run for one aligner, not both;
 // For example when publishing bams, or pushing bams to multiqc.
 
-def pick_aligner(aligner) {
-    return
-      aligner == 'star' || (!params.run_star && aligner == 'hisat2')
-    ? true
-    : false
+def pick_aligner(String aligner) {
+    println "aligner ($aligner) ${aligner.class}"
+    return  aligner == 'star' || (!params.run_star && aligner == 'hisat2')
+      ? true
+      : false
 }
 
 
@@ -506,7 +511,7 @@ process salmon {
     publishDir "${params.outdir}/Salmon", mode: 'copy'
 
     when:
-    params.aligner == 'salmon'
+    params.run_salmon
 
     input:
     set val(samplename), file(reads) from ch_salmon
@@ -514,8 +519,8 @@ process salmon {
     file trans_gene from ch_salmon_trans_gene.collect()
 
     output:
-    file "${prefix}.quant.sf" into ch_salmon_trans
-    file "${prefix}.quant.genes.sf" into ch_salmon_genes
+    file "${samplename}.quant.sf" into ch_salmon_trans
+    file "${samplename}.quant.genes.sf" into ch_salmon_genes
 
     script:
     """
@@ -641,7 +646,6 @@ process featureCounts {
 
     output:
     set val(aligner), file("*.gene.fc.txt") into ch_merge_fc
-              // currentpos: this leads to conflicts in multiqc.
     set val(aligner), file("*.gene.fc.txt.summary") into ch_multiqc_fc
     set val(aligner), file("*.biotype_counts*mqc.txt") into ch_multiqc_fcbiotype
 
@@ -697,37 +701,18 @@ process indexbam {
 
 
 ch_publishbam
+  .view()
   .subscribe {
-      aligner = it[0]
-      samplename = it[1]
-      filename = it[2]
+      aligner     = it[0]
+      samplename  = it[1]
+      thebam      = it[2]
+      bamname     = thebam.toString()
       if (pick_aligner(aligner)) {
-        myfile = file("$filename")
         dir = "${params.outdir}/${aligner}-bams"
-        myfile.copyTo("$dir/${samplename.md5()[-1..-2]}/$samplename/$filename.baseName")
+        thebam.copyTo("$dir/${samplename.md5()[0..1]}/${samplename}-${aligner}.bam")
       }
   }
 
-
-if (false) {
-process publisbam {
-    tag "${samplename}"
-    publishDir "${params.outdir}/${params.aligner}-bams/", mode: 'link',
-      saveAs: { filename -> "${samplename.md5()[-1..-2]}/$samplename/$filename" }
-
-    when:
-    params.save_bam
-
-    input:
-    set val(samplename), file(thebam) from ch_publishbam
-
-    output:
-    file(thebam)
-
-    script:
-    """
-    """
-} }
 
 process mapsummary {
     tag "${samplename}"
@@ -777,32 +762,33 @@ process merge_starcounts {
 ch_merge_fc
   .transpose()
   .groupTuple()
+  .collectFile { id, files -> [ id, files.collect{ it.toString() }.join('\n') + '\n' ] }
   .set{ ch_merge_fc_byaligner }
 
 
 process merge_featureCounts {
-    tag "${input_files[0]}"
+    tag "$aligner"
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    set val(aligner), file(input_files) from ch_merge_fc_byaligner
+    file metafile from ch_merge_fc_byaligner
 
     output:
     file '*-fc-genecounts.txt'
 
     script:
-    def outputname = "${params.runtag}-${aligner}-fc-genecounts.txt"
+    aligner = metafile.baseName   // not strictly necessary
+    outputname = "${params.runtag}-${aligner}-fc-genecounts.txt"
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .gene.featureCounts.txt                             \\
       -c -1 --skip-comments --header                                  \\
-      -o $outputname -i $input_files
+      -o $outputname -i \$(cat $metafile)
     """
 }
-// Old branch params.aligner != salmon }
 
 
-process mergeSalmonCounts {
+process merge_salmoncounts {
     tag "${input_trans[0]}"
     publishDir "${params.outdir}/combined", mode: 'link'
 

@@ -2,9 +2,31 @@
 
 ====== general
 
--  use channel instead of publishbam process, subscribe with mklink hard=true
+1  merge_featurecounts.py: enable reading input files from -I metafile option
 
--  can I do fc for both hisat2 and STAR? with transpose yes.
+2  check_logs equivalent for hisat2, filter on overall alignment rate
+
+  ISAT2 summary stats:
+    Total pairs: 10000
+      Aligned concordantly or discordantly 0 time: 1784 (17.84%)
+      Aligned concordantly 1 time: 7343 (73.43%)
+      Aligned concordantly >1 times: 873 (8.73%)
+      Aligned discordantly 1 time: 0 (0.00%)
+    Total unpaired reads: 3568
+      Aligned 0 time: 3568 (100.00%)
+      Aligned 1 time: 0 (0.00%)
+      Aligned >1 times: 0 (0.00%)
+    Overall alignment rate: 82.16%
+
+3  lostcause: add file size check in crams_to_fastq
+
+4  restore irods resumption in case of no files.
+
+
+
+#  use channel instead of publishbam process, subscribe
+
+#  can I do fc for both hisat2 and STAR? with transpose yes.
 
 -  software versions; move conda file to github.
 
@@ -17,24 +39,9 @@
 
 ====== hisat2 (salmon)
 
-/  enable simultaneous hisat2 run with star (similar salmon)
+#  enable simultaneous hisat2 run with star (similar salmon)
 
 #   --known-splicesite-infile -- where did that come from? compare with nf-core/rnaseq
-
--  check_logs equivalent for hisat2, filter on overall alignment rate
-
-ISAT2 summary stats:
-  Total pairs: 10000
-    Aligned concordantly or discordantly 0 time: 1784 (17.84%)
-    Aligned concordantly 1 time: 7343 (73.43%)
-    Aligned concordantly >1 times: 873 (8.73%)
-    Aligned discordantly 1 time: 0 (0.00%)
-  Total unpaired reads: 3568
-    Aligned 0 time: 3568 (100.00%)
-    Aligned 1 time: 0 (0.00%)
-    Aligned >1 times: 0 (0.00%)
-  Overall alignment rate: 82.16%
-
 
 - -m hisat2 for multiQC?
 
@@ -45,8 +52,6 @@ ISAT2 summary stats:
       rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
 
 ====== lostcause
-
--  lostcause: add file size check in crams_to_fastq
 
 -  hopefully use future NF functionality in
       https://github.com/nextflow-io/nextflow/issues/903
