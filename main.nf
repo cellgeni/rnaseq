@@ -15,6 +15,21 @@ vim: syntax=groovy
 ----------------------------------------------------------------------------------------
 */
 
+
+params.run_star     = true
+params.run_qc       = true
+params.run_multiqc  = true
+params.run_fastqc   = true
+params.run_rnaseq   = true     // feature counts; featureCounts with one of STAR, hisat2, salmon
+params.run_mixcr    = false
+params.run_hisat2   = true
+params.run_salmon   = true
+params.save_bam     = false
+
+params.outdir = 'results'
+params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
+
+
 def helpMessage() {
     log.info"""
     =========================================
@@ -24,29 +39,42 @@ def helpMessage() {
 
     The typical command for running the pipeline is as follows:
 
-    nextflow run cellgeni/RNAseq --reads '*_R{1,2}.fastq.gz' --genome GRCh37 -profile farm3
+    nextflow run cellgeni/RNAseq --studyid 01234 --samplefile sample-study01234.txt --genome GRCh38 -profile farm3
 
     Mandatory arguments:
-      --genome                      Name of iGenomes reference
       -profile                      Hardware config to use. farm3 / farm4 / docker
+      --genome                      Name of iGenomes reference
+      --samplefile                  File with sample IDs. If input is from --fastqdir,
+                                    files names will be expected as <sampleid>.fastq.gz
+
+    Important options:
+      --studyid                     Unless input is from --fastqdir, specify a studyID.
+                                    Input will be queried in IRODS using ids from samplefile.
+      --runtag                      Will be included e.g. in count matrix names. Suggested: studyid
+      --outdir        [$params.outdir]
+
+    Modes:
+      --outdir                      The output directory where the results will be saved
+      --runtag                      Tag for outputs
+      --run_star      [$params.run_star]
+      --run_hisat2    [$params.run_hisat2]
+      --run_salmon    [$params.run_salmon]
+      --run_mixcr     [$params.run_mixcr]
+      --run_fastqc    [$params.run_fastqc]
+      --run_multiqc   [$params.run_multiqc]
+      --save_bam      [$params.save_bam]
+      --run_qc        [$params.run_qc]      Set to false to avoid fastqc, multiqc
+      --run_rnaseq    [$params.run_rnaseq]      Set to false avoid star, hisat2, salmon, featureCounts
 
     Strandedness:
       --forward_stranded            The library is forward stranded
       --reverse_stranded            The library is reverse stranded
       --unstranded                  The default behaviour
-
-    Other options:
-      --outdir                      The output directory where the results will be saved
-      --runtag                      Tag for outputs
-      --run_star
-      --run_hisat2
-      --run_salmon
-      --run_mixcr
     """.stripIndent()
 }
 
 
-version = '1.5'
+version = '1.7'
 
 params.help = false
 if (params.help){
@@ -57,27 +85,14 @@ if (params.help){
 params.samplefile = false
 params.studyid = -1
 params.fastqdir = false
-params.outdir = './results'
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
 params.singleend = false
 
 
-params.runtag  = "cgirnaseq"                 // use runtag as primary tag identifying the run; e.g. studyid
 params.name = false
-params.project = false
 params.genome = 'GRCh38'
 params.forward_stranded = false
 params.reverse_stranded = false
-
-params.run_qc       = true
-params.run_multiqc  = true
-params.run_fastqc   = true
-params.run_fcounts  = true                   // feature counts; featureCounts with one of STAR, hisat2, salmon
-params.run_mixcr    = false
-params.run_star     = true
-params.run_hisat2   = true
-params.run_salmon   = false
-params.save_bam     = false
 
 params.mito_name = 'MT'
 params.unstranded = false
@@ -193,9 +208,6 @@ if(params.gtf)
   summary['GTF Annotation']   = params.gtf
 if(params.bed12)
   summary['BED Annotation']   = params.bed12
-summary['Max Memory']         = params.max_memory
-summary['Max CPUs']           = params.max_cpus
-summary['Max Time']           = params.max_time
 summary['Output dir']         = params.outdir
 summary['Working dir']        = workflow.workDir
 summary['Container']          = workflow.container
@@ -203,8 +215,6 @@ summary['Current home']       = "$HOME"
 summary['Current path']       = "$PWD"
 summary['Script dir']         = workflow.projectDir
 summary['Config Profile']     = workflow.profile
-if(params.project)
-  summary['Cellgen Project']  = params.project
 if(workflow.revision)
   summary['Pipeline Release'] = workflow.revision
 
@@ -212,9 +222,7 @@ log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
 
-// Check that Nextflow version is up to date enough
-// try / throw / catch works for NF versions < 0.25 when this was implemented
-nf_required_version = '0.25.0'
+nf_required_version = '0.30.0'
 try {
     if( ! nextflow.version.matches(">= $nf_required_version") ){
         throw GroovyException('Nextflow version too old')
@@ -230,7 +238,7 @@ try {
 
 
 /*
- * The channel for input sample ids. This can either refer to a file names in a directory with
+ * The channel for input sample ids. This can either refer to file names in a directory with
  * fastq files, or to Sanger sample IDs in IRODS.
 */
 
@@ -362,7 +370,7 @@ ch_fastqs_irods
   .into{ ch_rnaseq; ch_fastqc; ch_mixcr }
 
 ch_rnaseq
-  .until{ ! params.run_fcounts }
+  .until{ ! params.run_rnaseq  }
   .into { ch_hisat2; ch_star; ch_salmon }
 
 
@@ -701,7 +709,7 @@ process indexbam {
 
 
 ch_publishbam
-  .view()
+  .until{ !params.save_bam }
   .subscribe {
       aligner     = it[0]
       samplename  = it[1]
