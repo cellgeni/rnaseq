@@ -1,4 +1,5 @@
 
+, check splicesites in nfcore
 
 ====== general
 
@@ -23,6 +24,7 @@
 4  restore irods resumption in case of no files.
 
 
+-  star overhang 74: best to encode it somewhere?
 
 #  use channel instead of publishbam process, subscribe
 

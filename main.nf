@@ -6,15 +6,13 @@ vim: syntax=groovy
                          B U L K - R N A S E Q    P I P E L I N E
 ========================================================================================
  Cellular Genetics bulk-RNA-Seq analysis pipeline, Wellcome Sanger Institute
- #### Homepage / Documentation
- https://github.com/cellgeni/rnaseq
- #### Authors
- Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
- Stijn van Dongen <svd@sanger.ac.uk>
- Original development by SciLifeLabs
+ Documentation:   https://github.com/cellgeni/rnaseq
+ Authors:
+    Stijn van Dongen <svd@sanger.ac.uk>
+    Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
+    Original development by SciLifeLabs
 ----------------------------------------------------------------------------------------
 */
-
 
 params.run_star     = true
 params.run_qc       = true
@@ -100,12 +98,9 @@ params.star_index = params.genome ? params.genomes[ params.genome ].star ?: fals
 params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: false : false
 params.salmon_trans_gene = params.genome ? params.genomes[ params.genome ].salmon_trans_gene ?: false : false
 params.star_overhang = '74'
-params.dna = params.genome ? params.genomes[ params.genome ].dna ?: false : false
-params.cdna = params.genome ? params.genomes[ params.genome ].cdna ?: false : false
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.splicesites = true
 params.download_hisat2index = false
 params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
@@ -159,28 +154,10 @@ ch_hisat2_splicesites = params.run_hisat2
     .ifEmpty { exit 1, "HISAT2 splice sites file not found in $params.hisat2_index" }
   : Channel.empty()
 
-if ( params.dna ){
-    f = file(params.dna)
-    if( !f.exists() ) exit 1, "Fasta file not found: ${params.dna}"
-}
-if ( params.cdna ){
-    f = file(params.cdna)
-    if( !f.exists() ) exit 1, "cdna file not found: ${params.cdna}"
-}
 
-if( params.gtf ){
-    Channel.fromPath(params.gtf)
-        .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
-        .into { ch_gtf_star; ch_gtf_featureCounts; }
-}
-
-
-// Has the run name been specified by the user?
-//  this has the bonus effect of catching both -name and --name
-custom_runName = params.name
-if( !(workflow.runName ==~ /[a-z]+_[a-z]+/) ){
-  custom_runName = workflow.runName
-}
+Channel.fromPath(params.gtf)
+  .ifEmpty { exit 1, "GTF annotation file not found: ${params.gtf}" }
+  .into { ch_gtf_star; ch_gtf_featureCounts; }
 
 
 // Header log info
@@ -188,26 +165,17 @@ log.info "========================================="
 log.info "         RNASeq pipeline v${version}"
 log.info "========================================="
 def summary = [:]
-summary['Run Name']           = custom_runName ?: workflow.runName
+summary['Run Name']           = workflow.runName
 summary['Sample file']        = params.samplefile
 summary['Data Type']          = 'Paired-End'
 summary['Genome']             = params.genome
 summary['Biotype tag']        = gene_biotype
 summary['Strandedness']       = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
-if(params.run_star) {
-  summary['STAR Index']       = params.star_index
-}
-if(params.run_salmon) {
-  summary['Salmon Index']     = params.salmon_index
-}
-if(params.run_hisat2) {
-  summary['HISAT2 Index']     = params.hisat2_index
-  summary['HISAT2 Splice Sites'] = params.splicesites
-}
-if(params.gtf)
-  summary['GTF Annotation']   = params.gtf
-if(params.bed12)
-  summary['BED Annotation']   = params.bed12
+summary['STAR Index']         = params.star_index
+summary['Salmon Index']       = params.salmon_index
+summary['HISAT2 Index']       = params.hisat2_index
+summary['GTF Annotation']     = params.gtf
+summary['BED Annotation']     = params.bed12
 summary['Output dir']         = params.outdir
 summary['Working dir']        = workflow.workDir
 summary['Container']          = workflow.container
@@ -228,11 +196,13 @@ try {
         throw GroovyException('Nextflow version too old')
     }
 } catch (all) {
-    log.error "====================================================\n" +
-              "  Nextflow version $nf_required_version required! You are running v$workflow.nextflow.version.\n" +
-              "  Pipeline execution will continue, but things may break.\n" +
-              "  Please run `nextflow self-update` to update Nextflow.\n" +
-              "============================================================"
+    log.error """
+====================================================
+  Nextflow version $nf_required_version required! You are running v$workflow.nextflow.version.
+  Pipeline execution will continue, but things may break.
+  Please run `nextflow self-update` to update Nextflow.
+============================================================
+"""
 }
 
 
@@ -447,7 +417,6 @@ def star_filter(logs) {
 // For example when publishing bams, or pushing bams to multiqc.
 
 def pick_aligner(String aligner) {
-    println "aligner ($aligner) ${aligner.class}"
     return  aligner == 'star' || (!params.run_star && aligner == 'hisat2')
       ? true
       : false
