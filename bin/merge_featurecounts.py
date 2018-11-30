@@ -90,18 +90,24 @@ if __name__ == "__main__":
                                    help="skip lines starting with #")
     parser.add_argument("--header", action="store_true",
                                    help="first non-commment line is a header line")
-    parser.add_argument("-o", "--results_file_name",dest='out_file', default='all_counts.txt',
+    parser.add_argument("-o", dest='out_file', default='all_counts.txt',
                                    help= "Name of the output file that will be created")
-    parser.add_argument("-i", "--input_files", metavar='<input_files>', nargs='+', default='*.featureCounts.txt',
+    parser.add_argument("-i", dest='input_files', metavar='<input_files>', nargs='+',
                                    help="Path to the outputfiles from FeatureCounts. ")
+    parser.add_argument("-I", dest='metafile', default="", type=str,
+                                   help="File containing input file names, one per line")
     args = parser.parse_args()
     skip_comments = args.skip_comments
     expect_header = args.header
     thesuffix = args.rm_suffix
     thecolumn = args.colidx
+    metafile = args.metafile
+
+    if len(metafile) > 0:
+      if args.input_files:
+        sys.exit("Do not mix -I and -i flags!")
+      print(metafile)
+      args.input_files = [line.rstrip('\n') for line in open(metafile)]
 
     merge_featureCounts(args.dest_dir, args.out_file, args.input_files)
-
-
-
 

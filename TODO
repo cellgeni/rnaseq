@@ -17,7 +17,8 @@
       Aligned >1 times: 0 (0.00%)
     Overall alignment rate: 82.16%
 
-3  lostcause: add file size check in crams_to_fastq
+3  lostcause: add file size check in crams_to_fastq:
+   or catch the STAR error if it happens. Test on small files, found in tic-148 / ijn
 
 4  restore irods resumption in case of no files.
 
