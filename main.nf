@@ -587,7 +587,7 @@ process hisat2_sortOutput {
 
     script:
     // def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
-    def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.9 * ( task.memory.toBytes() - 1000000000 ) / task.cpus}"
+    def avail_mem = task.memory == null ? '' : "-m ${ sprintf "%.0f", 0.9 * ( task.memory.toBytes() - 1000000000 ) / task.cpus}"
 
     """
     samtools sort \\
