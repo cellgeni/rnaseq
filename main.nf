@@ -586,7 +586,8 @@ process hisat2_sortOutput {
     set val("hisat2"), val(samplename), file("${samplename}.hs2.sorted.bam") into ch_fc_hisat2, ch_bam_hisat2
 
     script:
-    def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
+    // def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
+    def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.9 * ( task.memory.toBytes() - 1000000000 ) / task.cpus}"
 
     """
     samtools sort \\
@@ -814,12 +815,12 @@ process lostcause {
 ch_multiqc_fc
   .filter{ pick_aligner(it[0]) }
   .map { it[1] }
-  .set{ ch_multiqc_fc_hisat2 }
+  .set{ ch_multiqc_fc_aligner }
 
 ch_multiqc_fcbiotype
   .filter{ pick_aligner(it[0]) }
   .map{ it[1] }
-  .set{ ch_multiqc_fcbiotype_hisat2 }
+  .set{ ch_multiqc_fcbiotype_aligner }
 
 process multiqc {
 
@@ -837,8 +838,8 @@ process multiqc {
     file ('lostcause/*') from ch_multiqc_lostcause.collect().ifEmpty([])
     file (fastqc:'fastqc/*') from ch_multiqc_fastqc.collect().ifEmpty([])
     file ('mapsummary/*') from ch_multiqc_mapsum.collect().ifEmpty([])
-    file ('featureCounts/*') from ch_multiqc_fc_hisat2.collect().ifEmpty([])
-    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype_hisat2.collect().ifEmpty([])
+    file ('featureCounts/*') from ch_multiqc_fc_aligner.collect().ifEmpty([])
+    file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype_aligner.collect().ifEmpty([])
     file ('star/*') from ch_alignment_logs_star.collect().ifEmpty([])
     file ('hisat2/*') from ch_alignment_logs_hisat2.collect().ifEmpty([])
 
