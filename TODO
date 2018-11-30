@@ -1,6 +1,4 @@
 
-, check splicesites in nfcore
-
 ====== general
 
 1  merge_featurecounts.py: enable reading input files from -I metafile option
