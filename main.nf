@@ -638,10 +638,14 @@ process featureCounts {
     } else if (reverse_stranded && !unstranded){
         fc_direction = 2
     }
+    outfile = "${tag}.gene.fc.txt"
     """
     featureCounts -T ${task.cpus} -a $gtf -g gene_id          \\
-      -o ${tag}.gene.fc.txt $pairedend                        \\
+      -o ${outfile} $pairedend                                \\
       -s $fc_direction ${extraparams} $thebam
+
+    cut -f 1,7 ${outfile} > reduced.${outfile}   #  This
+    mv reduced.${outfile} ${outfile}             #  reduces the file size from ~ 30M to ~1M
 
     featureCounts -T ${task.cpus} -a $gtf -g ${gene_biotype}  \\
       -o ${tag}.biotype.fc.txt $pairedend                     \\
@@ -760,7 +764,7 @@ process merge_featureCounts {
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .gene.featureCounts.txt                             \\
-      -c -1 --skip-comments --header                                  \\
+      -c 1 --skip-comments --header                                  \\
       -o $outputname -i \$(cat $metafile)
     """
 }

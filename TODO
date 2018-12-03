@@ -1,7 +1,7 @@
 
 ====== general
 
-1  merge_featurecounts.py: enable reading input files from -I metafile option
+1  ignore all columns from featurecounts except 1,7; file size is 30M per sample.
 
 2  check_logs equivalent for hisat2, filter on overall alignment rate
 
@@ -20,14 +20,13 @@
 3  lostcause: add file size check in crams_to_fastq:
    or catch the STAR error if it happens. Test on small files, found in tic-148 / ijn
 
-4  restore irods resumption in case of no files.
+4  STAR small cram file filter; perhaps move indexbam functionality before HISAT2 and STAR,
+   have a filter there. Anyway, make sure it is in lostcause.
+
+5  restore irods resumption in case of no files.
 
 
 -  star overhang 74: best to encode it somewhere?
-
-#  use channel instead of publishbam process, subscribe
-
-#  can I do fc for both hisat2 and STAR? with transpose yes.
 
 -  software versions; move conda file to github.
 
@@ -37,6 +36,12 @@
 -  NOTE:
    mixcr was installed by me, not in conda environment.
    Should install it as cellgeni-su.
+
+#  use channel instead of publishbam process, subscribe
+
+#  can I do fc for both hisat2 and STAR? with transpose yes.
+
+#  merge_featurecounts.py: enable reading input files from -I metafile option
 
 ====== hisat2 (salmon)
 
