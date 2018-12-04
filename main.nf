@@ -529,8 +529,11 @@ n_hisat2_lowmapping = 0
 def hisat2_filter(logs) {
     def percent_aligned = 0
     logs.eachLine { line ->
-        if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
-            percent_aligned = matcher[0][1]          
+        // if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
+        //     percent_aligned = matcher[0][1]          
+        // }
+        if ((matcher = a =~ /Aligned concordantly 1 time: \s*(\d+)\s+\((.*)%\)/)) {
+          percent_aligned = matcher[0][2]
         }
     }
     if (percent_aligned.toFloat() < params.min_pct_aln.toFloat()) {
@@ -545,9 +548,9 @@ process hisat2Align {
 
     tag "$samplename"
 
-    publishDir "${params.outdir}/HISAT2", mode: 'copy',
+    publishDir "${params.outdir}", mode: 'copy',
         saveAs: {filename ->
-            if (filename.indexOf(".hisat2_summary.txt") > 0) "logs/hisat2/$filename"
+            if (filename.indexOf(".hisat2_summary.txt") > 0) "HISAT2logs/$filename"
             else null
         }
 
@@ -562,7 +565,6 @@ process hisat2Align {
     output:
     set val(samplename), file('*.hisat2_summary.txt'), file("${samplename}.bam") into ch_hisat2_aligned
     file "*.hisat2_summary.txt" into ch_alignment_logs_hisat2
-    file '.command.log' into hisat_stdout
 
     script:
     def index_base = indices[0].toString() - ~/.\d.ht2/
