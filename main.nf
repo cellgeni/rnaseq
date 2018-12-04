@@ -532,7 +532,7 @@ def hisat2_filter(logs) {
         // if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
         //     percent_aligned = matcher[0][1]          
         // }
-        if ((matcher = a =~ /Aligned concordantly 1 time: \s*(\d+)\s+\((.*)%\)/)) {
+        if ((matcher = line =~ /Aligned concordantly 1 time: \s*(\d+)\s+\((.*)%\)/)) {
           percent_aligned = matcher[0][2]
         }
     }
@@ -834,7 +834,7 @@ process lostcause {
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    file (inputs) from ch_lostcause.collectFile()
+    file (inputs) from ch_lostcause.collectFile{ ['lostcause.txt', it.text] }
 
     output:
     file('*.lostcause_mqc.txt') into ch_multiqc_lostcause
