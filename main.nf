@@ -8,7 +8,7 @@ vim: syntax=groovy
  Cellular Genetics bulk-RNA-Seq analysis pipeline, Wellcome Sanger Institute
  Documentation:   https://github.com/cellgeni/rnaseq
  Authors:
-    Stijn van Dongen <svd@sanger.ac.uk>
+    Stijn van Dongen <svd@sanger.ac.uk> (main developer)
     Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
     Original development by SciLifeLabs
 ----------------------------------------------------------------------------------------
@@ -23,6 +23,8 @@ params.run_mixcr    = false
 params.run_hisat2   = true
 params.run_salmon   = true
 params.save_bam     = false
+params.min_reads    = 500
+params.min_pct_aln  = 5
 
 params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
@@ -101,8 +103,6 @@ params.star_overhang = '74'
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
 params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
-params.download_hisat2index = false
-params.hisatBuildMemory = 200 // Required amount of memory in GB to build HISAT2 index with splice sites
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
 biotypes_header = file(params.biotypes_header)
@@ -301,35 +301,36 @@ process crams_to_fastq {
         set val(samplename), file(crams) from ch_cram_files
     output: 
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_irods
+        file('*.lostcause.txt') optional true into ch_lostcause_cram
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
         // This is not confirmed entirely just yet.
         // def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.7 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
+    def cramfile = "${samplename}.cram"
     """
-    samtools merge -@ ${task.cpus} -f ${samplename}.cram ${crams}
-
-    # check that the size of the cram file is >0.5Mb
-    minimumsize=500000
-    actualsize=\$(wc -c <"${samplename}.cram")
+    samtools merge -@ ${task.cpus} -f $cramfile ${crams}
 
     f1=${samplename}_1.fastq.gz
     f2=${samplename}_2.fastq.gz
 
-    if [ \$actualsize -ge \$minimumsize ]; then
+    numreads=\$(samtools view --input-fmt-option required_fields=2 -c $cramfile)
+    if (( numreads >= ${params.min_reads} )); then
                               # -O {stdout} -u {no compression}
                               # -N {always append /1 and /2 to the read name}
                               # -F 0x900 (bit 1, 8, filter secondary and supplementary reads)
       samtools collate    \\
           -O -u           \\
           -@ ${task.cpus} \\
-          ${samplename}.cram pfx-${samplename} | \\
+          $cramfile pfx-${samplename} | \\
       samtools fastq      \\
           -N              \\
           -F 0x900        \\
           -@ ${task.cpus} \\
           -1 \$f1 -2 \$f2 \\
           -
+    else
+      echo -e "${samplename}\\tcram\\tlowreads" > ${samplename}.lostcause.txt
     fi
     """
 }
@@ -396,14 +397,13 @@ process mixcr {
 n_star_lowmapping = 0
 
 def star_filter(logs) {
-    def percent_aligned = 0;
+    def percent_aligned = 0
     logs.eachLine { line ->
         if ((matcher = line =~ /Uniquely mapped reads %\s*\|\s*([\d\.]+)%/)) {
             percent_aligned = matcher[0][1]
         }
     }
-    logname = logs.getBaseName() - 'Log.final'
-    if(percent_aligned.toFloat() <= '5'.toFloat() ){
+    if (percent_aligned.toFloat() < params.min_pct_aln.toFloat()) {
         n_star_lowmapping++
         return false
     } else {
@@ -471,16 +471,15 @@ process star {
 
   star_aligned
       .choice(ch_star_accept, ch_star_reject)
-          { namelogsbams -> star_filter(namelogsbams[1]) ? 0 : 1 }
+          { namelogbam -> star_filter(namelogbam[1]) ? 0 : 1 }
 
   ch_star_accept
-  .map    { name, logs, bams -> ["star", name, bams] }
+  .map    { name, log, bam -> ["star", name, bam] }
   .into   { ch_fc_star; ch_bam_star }
 
   ch_star_reject
   .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
-  .mix(ch_lostcause_irods)
-  .set    { ch_lostcause }
+  .set    { ch_lostcause_star }
 
 
 process salmon {
@@ -525,6 +524,23 @@ process salmon {
 }
 
 
+n_hisat2_lowmapping = 0
+
+def hisat2_filter(logs) {
+    def percent_aligned = 0
+    logs.eachLine { line ->
+        if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
+            percent_aligned = matcher[0][1]          
+        }
+    }
+    if (percent_aligned.toFloat() < params.min_pct_aln.toFloat()) {
+        n_hisat2_lowmapping++
+        return false
+    } else {
+        return true
+    }
+}
+
 process hisat2Align {
 
     tag "$samplename"
@@ -544,8 +560,8 @@ process hisat2Align {
     file alignment_splicesites from ch_hisat2_splicesites.collect()
 
     output:
-    set val(samplename), file("${samplename}.bam") into ch_hisat2_bam
-    file "${samplename}.hisat2_summary.txt" into ch_alignment_logs_hisat2
+    set val(samplename), file('*.hisat2_summary.txt'), file("${samplename}.bam") into ch_hisat2_aligned
+    file "*.hisat2_summary.txt" into ch_alignment_logs_hisat2
     file '.command.log' into hisat_stdout
 
     script:
@@ -572,6 +588,22 @@ process hisat2Align {
     hisat2 --version
     """
 }
+
+  ch_hisat2_accept = Channel.create()
+  ch_hisat2_reject = Channel.create()
+
+  ch_hisat2_aligned
+      .choice(ch_hisat2_accept, ch_hisat2_reject)
+          { namelogbams -> hisat2_filter(namelogbams[1]) ? 0 : 1 }
+
+  ch_hisat2_accept
+  .map    { name, log, bam -> [name, bam] }
+  .set    { ch_hisat2_bam }
+
+  ch_hisat2_reject
+  .map    { it -> "${it[0]}\thisat2\tlowmapping\n" }
+  .mix(ch_lostcause_irods, ch_lostcause_cram, ch_lostcause_star)
+  .set    { ch_lostcause }
 
 
 // TODO; any reason not to merge this with the process above?
@@ -769,14 +801,13 @@ process merge_featureCounts {
     """
 }
 
-
 process merge_salmoncounts {
-    tag "${input_trans[0]}"
+    tag "${input_trans}/${input_genes}"
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    file input_trans from ch_salmon_trans.collect()
-    file input_genes from ch_salmon_genes.collect()
+    file input_trans from ch_salmon_trans.map { it.toString() }.collectFile(name: 'trans.meta', newLine: true)
+    file input_genes from ch_salmon_genes.map { it.toString() }.collectFile(name: 'genes.meta', newLine: true)
 
     output:
     file '*counts.txt'
@@ -788,11 +819,11 @@ process merge_salmoncounts {
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix _1.quant.genes.sf                                   \\
       -c -1 --skip-comments --header                                  \\
-      -o $outgenesname -i $input_genes
+      -o $outgenesname -i \$(cat $input_genes)
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix _1.quant.sf                                         \\
       -c -1 --skip-comments --header                                  \\
-      -o $outtransname -i $input_trans
+      -o $outtransname -i \$(cat $input_trans)
     """
 }
 
@@ -801,7 +832,7 @@ process lostcause {
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    file (inputs) from ch_lostcause.collect().ifEmpty([])
+    file (inputs) from ch_lostcause.collectFile()
 
     output:
     file('*.lostcause_mqc.txt') into ch_multiqc_lostcause
@@ -883,7 +914,8 @@ EOF
 workflow.onComplete {
 
     summary = [:]
-    summary['star low mapping'] = n_star_lowmapping
+    if (params.run_star)   summary['star low mapping'] = n_star_lowmapping
+    if (params.run_hisat2) summary['hisat2 low mapping'] = n_hisat2_lowmapping
 
     log.info "========================================="
     log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")

@@ -1,9 +1,16 @@
 
+
+lostcause needs to work always if some modes are not run.
+Be careful with mix(); does it work with channels inactivated by when: ?
+Try this by not running hisat; the mixing is done after hisat.
+Set high min percentage read on cline.
+
+
 ====== general
 
-1  ignore all columns from featurecounts except 1,7; file size is 30M per sample.
+#  ignore all columns from featurecounts except 1,7; file size is 30M per sample.
 
-2  check_logs equivalent for hisat2, filter on overall alignment rate
+#  check_logs equivalent for hisat2, filter on overall alignment rate
 
   ISAT2 summary stats:
     Total pairs: 10000
@@ -17,14 +24,20 @@
       Aligned >1 times: 0 (0.00%)
     Overall alignment rate: 82.16%
 
-3  lostcause: add file size check in crams_to_fastq:
-   or catch the STAR error if it happens. Test on small files, found in tic-148 / ijn
+#  collectFile pattern for lostcause (and any other merge process)
 
-4  STAR small cram file filter; perhaps move indexbam functionality before HISAT2 and STAR,
+#  lostcause: add file size check in crams_to_fastq:
+   or catch the STAR error if it happens. Test on small files, found in tic-148 / ijn
+   Perhaps move indexbam functionality before HISAT2 and STAR,
    have a filter there. Anyway, make sure it is in lostcause.
 
-5  restore irods resumption in case of no files.
+-  restore irods resumption in case of no files.
 
+-  submodule cellgeni/utils
+
+- -m hisat2 for multiQC?
+
+-  samtools collate has -f option for fast. Can we use this?
 
 -  star overhang 74: best to encode it somewhere?
 
@@ -43,15 +56,8 @@
 
 #  merge_featurecounts.py: enable reading input files from -I metafile option
 
-====== hisat2 (salmon)
-
 #  enable simultaneous hisat2 run with star (similar salmon)
 
-#   --known-splicesite-infile -- where did that come from? compare with nf-core/rnaseq
-
-- -m hisat2 for multiQC?
-
--  hisat2 mode may need time before it is ready to go, it is in need of an MOT.
 -  check places where I built indexes for STAR and hisat2; save scripts/settings
       Done:
       rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
