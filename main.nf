@@ -586,8 +586,10 @@ process hisat2Align {
             --met-stderr \\
             --new-summary \\
             --summary-file ${samplename}.hisat2_summary.txt \\
-            | samtools view -bS -F 4 -F 8 -F 256 - > ${samplename}.bam
-    hisat2 --version
+            | samtools view -bS -F 4 -F 256 - > ${samplename}.bam
+                    # TODO: document flags
+                    # 4: read unmapped
+                    # 256: not primary alignment
     """
 }
 
