@@ -6,12 +6,16 @@ sampleid=
 studyid=
 librarytype=
 qc=true
+numthread=0
 
-while getopts :s:t:l:Qh opt
+while getopts :N:s:t:l:Qh opt
 do
     case "$opt" in
     s)
       sampleid=$OPTARG
+      ;;
+    N)
+      numthread=$OPTARG
       ;;
     t)
       studyid=$OPTARG
@@ -26,7 +30,8 @@ do
       cat <<EOU
 Usage: irods.sh -s SAMPLENAME [-t STUDYID] [-l LIBRARYTYPE] [Other-options]
 Other-options:
-  -Q    allow un-qc-ed data (drop 'manual_qc = 1' from imeta)
+  -Q            allow un-qc-ed data (drop 'manual_qc = 1' from imeta)
+  -N <num>      Use <num> threads in iget
 EOU
       exit
       ;;
@@ -81,11 +86,13 @@ fi
 
 IMETA_OUTPUT=$(eval $cmd)
 
+export numthread
+
 if [[ $(echo $IMETA_OUTPUT) == 'No rows found' ]]; then
     exit 64
 else
     echo "${IMETA_OUTPUT}" \
-    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print qq{iget -K -n \$(ils -l $1/$2 | awk "/green/ {print \\\$2; exit}") $1/$2\n} }' \
+    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print qq{iget -N $ENV{numthread} -K -n \$(ils -l $1/$2 | awk "/green/ {print \\\$2; exit}") $1/$2\n} }' \
     | bash -e
 fi
 
