@@ -231,7 +231,7 @@ process irods {
 
     script:
     """
-    if bash -euo pipefail irods.sh -t ${params.studyid} -s ${samplename}; then
+    if bash -euo pipefail irods.sh -N ${task.cpus} -t ${params.studyid} -s ${samplename}; then
       true
     else
       stat=\$?
