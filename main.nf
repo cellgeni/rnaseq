@@ -235,9 +235,14 @@ process irods {
       true
     else
       stat=\$?
-      tag='UNKNOWN'
-      if [[ \$stat == 64 ]]; then tag='nofiles'; fi
-      echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
+      if [[ \$stat == 64 ]];
+        then tag='nofiles';
+        echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
+      else          
+        tag='UNKNOWN'
+        echo -e "${samplename}\\tirods\\t\$tag" > ${samplename}.lostcause.txt
+        exit \$stat
+      fi
     fi
     """
 }
@@ -477,6 +482,13 @@ process star {
   .map    { name, log, bam -> ["star", name, bam] }
   .into   { ch_fc_star; ch_bam_star }
 
+              // { it -> [text: "${it[0]}\tSTAR\tlowmapping\n"] }
+              // ^ This channel output will be merged with the it.text from a file
+              // in other channels. This is slightly hacky. Dangersign.
+              // This in pursuit of keeping track of where we lose samples.
+              // If this is to be rejigged, then it is probably easiest to
+              // implement the alignment check in shell code, and use file-based
+              // logic similarly as in process irods and process crams_to_fastq.
   ch_star_reject
   .map    { it -> [text: "${it[0]}\tSTAR\tlowmapping\n"] }
   .set    { ch_lostcause_star }
@@ -604,6 +616,7 @@ process hisat2Align {
   .map    { name, log, bam -> [name, bam] }
   .set    { ch_hisat2_bam }
 
+                  // This is slightly hacky. Dangersign. See previous dangersign.
   ch_hisat2_reject
   .map    { it -> [text: "${it[0]}\thisat2\tlowmapping\n"] }
   .mix(ch_lostcause_irods, ch_lostcause_cram, ch_lostcause_star)
@@ -745,7 +758,7 @@ process mapsummary {
     script:
     def mito_name = params.mito_name
     """
-    python $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
+    python2 $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
     """
 }
 
