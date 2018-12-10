@@ -478,7 +478,7 @@ process star {
   .into   { ch_fc_star; ch_bam_star }
 
   ch_star_reject
-  .map    { it -> "${it[0]}\tSTAR\tlowmapping\n" }
+  .map    { it -> [text: "${it[0]}\tSTAR\tlowmapping\n"] }
   .set    { ch_lostcause_star }
 
 
@@ -605,7 +605,7 @@ process hisat2Align {
   .set    { ch_hisat2_bam }
 
   ch_hisat2_reject
-  .map    { it -> "${it[0]}\thisat2\tlowmapping\n" }
+  .map    { it -> [text: "${it[0]}\thisat2\tlowmapping\n"] }
   .mix(ch_lostcause_irods, ch_lostcause_cram, ch_lostcause_star)
   .set    { ch_lostcause }
 

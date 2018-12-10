@@ -6,6 +6,8 @@
 
 (!) submodule cellgeni/utils
 
+!  check [text: "a b c\n"] idiom, mixed with collectFile on it.text.
+
 - -m hisat2 for multiQC?
 
 -  samtools collate has -f option for fast. Can we use this?
