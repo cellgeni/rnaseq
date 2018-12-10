@@ -1,18 +1,36 @@
 
 
-lostcause needs to work always if some modes are not run.
-Be careful with mix(); does it work with channels inactivated by when: ?
-Try this by not running hisat; the mixing is done after hisat.
-Set high min percentage read on cline.
-
-
 ====== general
+
+(!) restore irods resumption in case of no files.
+
+(!) submodule cellgeni/utils
+
+- -m hisat2 for multiQC?
+
+-  samtools collate has -f option for fast. Can we use this?
+
+-  star overhang 74: best to encode it somewhere?
+
+-  software versions; move conda file to github.
+
+-  NOTE:
+   mixcr was installed by me, not in conda environment.
+   Should install it as cellgeni-su.
+
+?  enable fastqdir simultaneous with IRODS. this will help testing.
+   so --fastqdirPE (stick flag in option), --samplefile_dir
+
+-  check places where I built indexes for STAR and hisat2; save scripts/settings
+      Done:
+      rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
+      rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
 
 #  ignore all columns from featurecounts except 1,7; file size is 30M per sample.
 
 #  check_logs equivalent for hisat2, filter on overall alignment rate
 
-  ISAT2 summary stats:
+  HISAT2 summary stats:
     Total pairs: 10000
       Aligned concordantly or discordantly 0 time: 1784 (17.84%)
       Aligned concordantly 1 time: 7343 (73.43%)
@@ -31,25 +49,6 @@ Set high min percentage read on cline.
    Perhaps move indexbam functionality before HISAT2 and STAR,
    have a filter there. Anyway, make sure it is in lostcause.
 
--  restore irods resumption in case of no files.
-
--  submodule cellgeni/utils
-
-- -m hisat2 for multiQC?
-
--  samtools collate has -f option for fast. Can we use this?
-
--  star overhang 74: best to encode it somewhere?
-
--  software versions; move conda file to github.
-
--  enable fastqdir simultaneous with IRODS. this will help testing.
-   so --fastqdirPE (stick flag in option), --samplefile_dir
-
--  NOTE:
-   mixcr was installed by me, not in conda environment.
-   Should install it as cellgeni-su.
-
 #  use channel instead of publishbam process, subscribe
 
 #  can I do fc for both hisat2 and STAR? with transpose yes.
@@ -57,11 +56,6 @@ Set high min percentage read on cline.
 #  merge_featurecounts.py: enable reading input files from -I metafile option
 
 #  enable simultaneous hisat2 run with star (similar salmon)
-
--  check places where I built indexes for STAR and hisat2; save scripts/settings
-      Done:
-      rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
-      rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
 
 ====== lostcause
 
