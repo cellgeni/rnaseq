@@ -775,7 +775,7 @@ process merge_starcounts {
     publishDir "${params.outdir}/combined", mode: 'link'
 
     input:
-    file input_files from ch_merge_starcounts.collect()
+    file metafile from ch_merge_starcounts.map { it.toString() }.collectFile(name: 'star.meta', newLine: true)
 
     output:
     file '*-star-genecounts.txt'
@@ -785,7 +785,7 @@ process merge_starcounts {
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       -c 1 --rm-suffix .ReadsPerGene.out.tab                          \\
-      -o $outputname -i $input_files
+      -o $outputname -I $metafile
     """
 }
 
@@ -814,7 +814,7 @@ process merge_featureCounts {
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .gene.featureCounts.txt                             \\
       -c 1 --skip-comments --header                                  \\
-      -o $outputname -i \$(cat $metafile)
+      -o $outputname -I $metafile
     """
 }
 
@@ -836,11 +836,11 @@ process merge_salmoncounts {
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix _1.quant.genes.sf                                   \\
       -c -1 --skip-comments --header                                  \\
-      -o $outgenesname -i \$(cat $input_genes)
+      -o $outgenesname -I $input_genes
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix _1.quant.sf                                         \\
       -c -1 --skip-comments --header                                  \\
-      -o $outtransname -i \$(cat $input_trans)
+      -o $outtransname -I $input_trans
     """
 }
 

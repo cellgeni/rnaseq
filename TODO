@@ -6,7 +6,7 @@
 
 (!) submodule cellgeni/utils
 
-!  check [text: "a b c\n"] idiom, mixed with collectFile on it.text.
+!  Featurecounts more memory for bulk data; try dynamic nextflow directive
 
 - -m hisat2 for multiQC?
 
@@ -16,9 +16,10 @@
 
 -  software versions; move conda file to github.
 
--  NOTE:
+-  NOTE mixcr fastqc
    mixcr was installed by me, not in conda environment.
    Should install it as cellgeni-su.
+   fastqc was installed not as part of conda
 
 ?  enable fastqdir simultaneous with IRODS. this will help testing.
    so --fastqdirPE (stick flag in option), --samplefile_dir
@@ -27,6 +28,13 @@
       Done:
       rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
       rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
+
+#  star collectFile
+
+#  check [text: "a b c\n"] idiom, mixed with collectFile on it.text, used downstream
+   of ch_star_reject and ch_hisat2_reject.
+!  However, it is perhaps neater to do this in the script, and generate a file
+   (i.e. pick the approach taken in irods rather than star/hisat2).
 
 #  ignore all columns from featurecounts except 1,7; file size is 30M per sample.
 
