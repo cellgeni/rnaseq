@@ -771,7 +771,7 @@ process mapsummary {
 
 process merge_starcounts {
 
-    tag "${input_files[0]}"
+    tag "$metafile"
     publishDir "${params.outdir}/combined", mode: 'link'
     label 'merge_feature'
 
