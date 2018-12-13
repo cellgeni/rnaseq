@@ -7,8 +7,13 @@
 (!) submodule cellgeni/utils
 
 !  Featurecounts more memory for bulk data; try dynamic nextflow directive
+   how did that work again?
+
+!  Indexbam: compute total amount of giga-bases.
 
 - -m hisat2 for multiQC?
+
+-  retry regime: grow memory but keep CPUs maximal at 8. Write Groovy function.
 
 -  samtools collate has -f option for fast. Can we use this?
 

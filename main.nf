@@ -773,6 +773,7 @@ process merge_starcounts {
 
     tag "${input_files[0]}"
     publishDir "${params.outdir}/combined", mode: 'link'
+    label 'merge_feature'
 
     input:
     file metafile from ch_merge_starcounts.map { it.toString() }.collectFile(name: 'star.meta', newLine: true)
@@ -800,6 +801,7 @@ ch_merge_fc
 process merge_featureCounts {
     tag "$aligner"
     publishDir "${params.outdir}/combined", mode: 'link'
+    label 'merge_feature'
 
     input:
     file metafile from ch_merge_fc_byaligner
@@ -821,6 +823,7 @@ process merge_featureCounts {
 process merge_salmoncounts {
     tag "${input_trans}/${input_genes}"
     publishDir "${params.outdir}/combined", mode: 'link'
+    label 'merge_feature'
 
     input:
     file input_trans from ch_salmon_trans.map { it.toString() }.collectFile(name: 'trans.meta', newLine: true)
