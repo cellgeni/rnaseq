@@ -8,12 +8,14 @@
 
 !  Featurecounts more memory for bulk data; try dynamic nextflow directive
    how did that work again?
+   memory { reads.size() < 70.KB ? 1.GB : 5.GB }
 
 !  Indexbam: compute total amount of giga-bases.
 
-- -m hisat2 for multiQC?
+-  From memory, the multiqc lostcause table only reports one of the aligners for lowmapping samples.
+   Verify this; if so the first column is presumably treated as unique key.
 
--  retry regime: grow memory but keep CPUs maximal at 8. Write Groovy function.
+- -m hisat2 for multiQC?
 
 -  samtools collate has -f option for fast. Can we use this?
 

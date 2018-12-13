@@ -519,6 +519,7 @@ process salmon {
         --seqBias \\
         --gcBias \\
         --posBias \\
+        --no-version-check \\
         -q \\
         -o . \\
         -1 ${reads[0]} \\
