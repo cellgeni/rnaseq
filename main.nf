@@ -30,6 +30,8 @@ params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
 
 
+n_numreads = 0
+
 def helpMessage() {
     log.info"""
     =========================================
@@ -120,14 +122,6 @@ if (params.studyid < 0 && !params.fastqdir) {
   exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
 }
 
-params.aligner = 'star'
-if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 'salmon'){
-    exit 1, "Invalid aligner option: ${params.aligner}. Valid options: 'star', 'hisat2', 'salmon'"
-}
-
-if (params.run_hisat2 && !params.hisat2_index) {
-    exit 1, "No hisat2 index"
-}
 
 ch_star_index = params.run_star
     ? Channel.fromPath(params.star_index)
@@ -307,6 +301,7 @@ process crams_to_fastq {
     output: 
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_irods
         file('*.lostcause.txt') optional true into ch_lostcause_cram
+        file('numreads.txt') optional true into ch_numreads
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
@@ -324,6 +319,7 @@ process crams_to_fastq {
                               # -O {stdout} -u {no compression}
                               # -N {always append /1 and /2 to the read name}
                               # -F 0x900 (bit 1, 8, filter secondary and supplementary reads)
+      echo -n \$numreads > numreads.txt
       samtools collate    \\
           -O -u           \\
           -@ ${task.cpus} \\
@@ -931,12 +927,17 @@ EOF
     """
 }
 
+ch_numreads
+  .map { it.text.trim().toInteger() }
+  .sum()
+  .subscribe{ n_numreads = it }
 
 workflow.onComplete {
 
     summary = [:]
     if (params.run_star)   summary['star low mapping'] = n_star_lowmapping
     if (params.run_hisat2) summary['hisat2 low mapping'] = n_hisat2_lowmapping
+    summary['total read count'] = n_numreads
 
     log.info "========================================="
     log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")

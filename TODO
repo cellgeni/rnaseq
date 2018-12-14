@@ -10,10 +10,7 @@
    how did that work again?
    memory { reads.size() < 70.KB ? 1.GB : 5.GB }
 
-!  Indexbam: compute total amount of giga-bases.
-
--  From memory, the multiqc lostcause table only reports one of the aligners for lowmapping samples.
-   Verify this; if so the first column is presumably treated as unique key.
+/  Indexbam: compute total amount of giga-bases.
 
 - -m hisat2 for multiQC?
 
@@ -35,6 +32,8 @@
       Done:
       rsync -avm --del --include='*RESUME*' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
       rsync -avm --del --include='*.config' -f 'hide,! */' DATA-indexes/ ~/DATA-indexes
+
+(!) nf-core uses csvtk, a tool set by Shen Wei in Golang.
 
 #  star collectFile
 
