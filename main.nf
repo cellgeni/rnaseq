@@ -369,7 +369,7 @@ process fastqc {
 process mixcr {
     tag {samplename}
     publishDir "${params.outdir}/mixcr/", mode: 'copy',
-      saveAs: { filename -> "${samplename.md5()[-1..-2]}/$samplename/$filename" }
+      saveAs: { filename -> "${samplename.md5()[0..1]}/$samplename/$filename" }
 
     when:
     params.run_mixcr
@@ -379,14 +379,14 @@ process mixcr {
 
     output:
     file("*full_clones.txt")
-    file("*.clones.clna")
+    file("*.clones.clns")
     file("*.vdjca")
 
     script:
     """
     mixcr align --species hsa -t ${task.cpus} $reads ${samplename}.alignments.vdjca
-    mixcr assemble -t ${task.cpus} ${samplename}.alignments.vdjca ${samplename}.clones.clna
-    mixcr exportClones ${samplename}.clones.clna ${samplename}.full_clones.txt
+    mixcr assemble -t ${task.cpus} ${samplename}.alignments.vdjca ${samplename}.clones.clns
+    mixcr exportClones ${samplename}.clones.clns ${samplename}.full_clones.txt
     """
 }
 
