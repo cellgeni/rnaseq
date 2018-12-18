@@ -553,7 +553,7 @@ def hisat2_filter(logs) {
     }
 }
 
-process hisat2Align {
+process hisat2_align {
 
     tag "$samplename"
 
@@ -621,7 +621,7 @@ process hisat2Align {
 
 
 // TODO; any reason not to merge this with the process above?
-process hisat2_sortOutput {
+process hista2_sort {
 
     tag "$samplename"
 
@@ -755,7 +755,7 @@ process mapsummary {
     script:
     def mito_name = params.mito_name
     """
-    python2 $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
+    python $baseDir/bin/mito.py -m ${mito_name} -t $thestats > ${samplename}_mqc.txt
     """
 }
 
