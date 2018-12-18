@@ -618,7 +618,7 @@ process hisat2_align {
 
 
 // TODO; any reason not to merge this with the process above?
-process hista2_sort {
+process hisat2_sort {
 
     tag "$samplename"
 
