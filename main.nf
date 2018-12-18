@@ -572,7 +572,7 @@ process hisat2_align {
     file alignment_splicesites from ch_hisat2_splicesites.collect()
 
     output:
-    set val(samplename), file('*.hisat2_summary.txt'), file("${samplename}.bam") into ch_hisat2_aligned
+    set val(samplename), file('*.hisat2_summary.txt'), file("${samplename}.h2.bam") into ch_hisat2_aligned
     file "*.hisat2_summary.txt" into ch_alignment_logs_hisat2
 
     script:
@@ -595,10 +595,7 @@ process hisat2_align {
             --met-stderr \\
             --new-summary \\
             --summary-file ${samplename}.hisat2_summary.txt \\
-            | samtools view -bS -F 4 -F 256 - > ${samplename}.bam
-                    # TODO: document flags
-                    # 4: read unmapped
-                    # 256: not primary alignment
+            -S ${samplename}.h2.bam
     """
 }
 
@@ -629,17 +626,22 @@ process hista2_sort {
     set val(samplename), file(hisat2_bam) from ch_hisat2_bam
 
     output:
-    set val("hisat2"), val(samplename), file("${samplename}.hs2.sorted.bam") into ch_fc_hisat2, ch_bam_hisat2
+    set val("hisat2"), val(samplename), file("${samplename}.h2sort.bam") into ch_fc_hisat2, ch_bam_hisat2
 
     script:
     // def avail_mem = task.memory == null ? '' : "-m ${task.memory.toBytes() / task.cpus}"
     def avail_mem = task.memory == null ? '' : "-m ${ sprintf "%.0f", 0.9 * ( task.memory.toBytes() - 1000000000 ) / task.cpus}"
 
     """
+                    # TODO: document flags
+                    # 4: read unmapped
+                    # 256: not primary alignment
+                    # -u uncompressed (quicker/less CPU if streaming), implies bam format.
+    samtools view -u -bS -F 4 -F 256 $hisat2_bam |
     samtools sort \\
-        $hisat2_bam \\
         -@ ${task.cpus} $avail_mem \\
-        -o ${samplename}.hs2.sorted.bam
+        -o ${samplename}.h2sort.bam \\
+        -
     """
 }
 
