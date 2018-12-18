@@ -32,7 +32,7 @@ if (params.aligner != 'star' && params.aligner != 'hisat2' && params.aligner != 
 }
 
 if (params.aligner == 'hisat2') {
-    exit 1, "Not yet supported: hisat2"
+    // exit 1, "Not yet supported: hisat2"
 }
 
 
@@ -42,9 +42,9 @@ if (params.aligner == 'hisat2') {
   }
 }
 
-Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .set { dna_star_ch }
-Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { gtf_star_ch; gtf_bed_ch }
-Channel.fromPath(params.cdna).ifEmpty { exit 1, "cdna annot file not found" } .into { cdna_salmon_ch; cdna_transgene_ch }
+Channel.fromPath(params.dna).ifEmpty { exit 1, "dna fasta file not found" } .into { ch_dna_star; ch_dna_hisat2 }
+Channel.fromPath(params.gtf).ifEmpty { exit 1, "gtf annot file not found" } .into { ch_gtf_star; ch_gtf_bed; ch_gtf_hisat2_splice; ch_gtf_hisat2_index }
+Channel.fromPath(params.cdna).ifEmpty { exit 1, "cdna annot file not found" } .into { ch_cdna_salmon; ch_cdna_transgene }
 
 
 //  Has the run name been specified by the user?
@@ -73,8 +73,8 @@ if (params.aligner == 'star') {
       publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
       input:
-      file fasta from dna_star_ch
-      file gtf from gtf_star_ch
+      file fasta from ch_dna_star
+      file gtf from ch_gtf_star
 
       output:
       file "star"
@@ -91,6 +91,22 @@ if (params.aligner == 'star') {
           --genomeFastaFiles $fasta
       """
   }
+
+  // process makeBED12 {
+  //     tag "$gtf"
+  //     publishDir "${params.outdir}/reference_genome", mode: 'copy'
+
+  //     input:
+  //     file gtf from ch_gtf_bed
+
+  //     output:
+  //     file "${gtf.baseName}.bed"
+
+  //     script:
+  //     """
+  //     gtf2bed $gtf > ${gtf.baseName}.bed
+  //     """
+  // }
 }
 
 
@@ -101,7 +117,7 @@ if(params.aligner == 'salmon') {
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file fasta from cdna_salmon_ch
+        file fasta from ch_cdna_salmon
 
         output:
         file "salmon"
@@ -120,7 +136,7 @@ if(params.aligner == 'salmon') {
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file fasta from cdna_transgene_ch
+        file fasta from ch_cdna_transgene
 
         output:
         file "trans_gene*.txt"
@@ -136,15 +152,18 @@ if(params.aligner == 'salmon') {
 
 if (params.aligner == 'hisat2') {
 
-    process makeHisatSplicesites {
+    process hisat2_splicesites {
+
+        label 'hisat2_build'
         tag "$gtf"
+
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file gtf from gtf_makeHisatSplicesites
+        file gtf from ch_gtf_hisat2_splice
 
         output:
-        file "${gtf.baseName}.hisat2_splice_sites.txt" into indexing_splicesites, alignment_splicesites
+        file "${gtf.baseName}.hisat2_splice_sites.txt" into ch_hisat2_index_splice
 
         script:
         """
@@ -152,14 +171,17 @@ if (params.aligner == 'hisat2') {
         """
     }
 
-    process makeHISATindex {
+    process hisat2_index {
+
+        label 'hisat2_build'
         tag "$fasta"
+
         publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
         input:
-        file fasta from fasta
-        file indexing_splicesites from indexing_splicesites
-        file gtf from gtf_makeHISATindex
+        file fasta from ch_dna_hisat2
+        file indexing_splicesites from ch_hisat2_index_splice
+        file gtf from ch_gtf_hisat2_index
 
         output:
         file "${fasta.baseName}.*.ht2"
@@ -190,23 +212,4 @@ if (params.aligner == 'hisat2') {
         """
     }
 }
-
-
-
-process makeBED12 {
-    tag "$gtf"
-    publishDir "${params.outdir}/reference_genome", mode: 'copy'
-
-    input:
-    file gtf from gtf_bed_ch
-
-    output:
-    file "${gtf.baseName}.bed"
-
-    script:
-    """
-    gtf2bed $gtf > ${gtf.baseName}.bed
-    """
-}
-
 
