@@ -18,6 +18,8 @@
 
 -  software versions; move conda file to github.
 
+-  docker container for mixcr: https://hub.docker.com/r/mgibio/mixcr/
+
 -  NOTE mixcr fastqc
    mixcr was installed by me, not in conda environment.
    Should install it as cellgeni-su.
