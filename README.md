@@ -2,7 +2,7 @@
 
 ### Introduction
 
-RNAseq is a bioinformatics analysis pipeline used for RNA sequencing data at the
+cellgeni/rnaseq is a bioinformatics analysis pipeline used for RNA sequencing data at the
 [Cellular Genetics program](http://www.sanger.ac.uk/science/programmes/cellular-genetics)
 at [the Wellcome Sanger Institute](http://www.sanger.ac.uk/).
 
@@ -59,7 +59,7 @@ orchestration.
 - We use the sample ID as the primary process ID and tag everywhere.
 
 - The building of indexes was split off into a separate file `buildindex.nf`. This file
-  still needs a lot of work.
+  still needs a lot of work to recover from the splitting step.
 
 - All code was pulled out of conditional statements, enabling us to run different
   modes at the same time. This is helpful for testing, reduces overhead, and reduces
@@ -74,3 +74,4 @@ orchestration.
 ### Diagram
 This is the flow chart of the pipeline.
 
+![cellgeni/rnaseq flowchart](flowchart.png)
