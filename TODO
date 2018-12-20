@@ -10,6 +10,8 @@
    how did that work again?
    memory { reads.size() < 70.KB ? 1.GB : 5.GB }
 
+-  dump everythign in https://www.nextflow.io/docs/latest/metadata.html
+
 - -m hisat2 for multiQC?
 
 -  samtools collate has -f option for fast. Can we use this?
