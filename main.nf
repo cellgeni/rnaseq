@@ -933,7 +933,7 @@ EOF
 }
 
 ch_numreads
-  .map { it.text.trim().toInteger() }
+  .map { it.text.trim().toBigInteger() }
   .sum()
   .subscribe{ n_numreads = it }
 
