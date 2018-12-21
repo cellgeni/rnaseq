@@ -252,14 +252,16 @@ process get_fastq_files_single {
         val samplename from sample_list_dirse.flatMap{ it.readLines() }
     output:
         set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
+        file('numreads.txt') optional true into ch_numreads_fastq_se
     script:
     """
     name=${params.fastqdir}/${samplename}.fastq.gz
     if [[ ! -e \$name ]]; then
-      echo "Count file \$name not found"
+      echo "Fastq file \$name not found"
       false
     else
       ln -s \$name .
+      echo \$(( \$(zcat \$fname | wc -l) / 4)) > numreads.txt
     fi
     """
 }
@@ -275,14 +277,19 @@ process get_fastq_files {
         val samplename from sample_list_dirpe.flatMap{ it.readLines() }
     output:
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
+        file('numreads.txt') optional true into ch_numreads_fastq
     script:
     """
     list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
     if [[ 2 == \${#list[@]} ]]; then
-      ln -s \${list[0]} .
-      ln -s \${list[1]} .
+      f1=\${list[0]}
+      f2=\${list[1]}
+      ln -s \$f1 .
+      ln -s \$f2 .
+      echo  \$(( \$(zcat \$f1 | wc -l) / 2)) > numreads.txt
+      # TODO: we could do the same for f2 and introduce check. #shouldWe?
     else
-      echo "Count mismatch sample ${samplename} found (\${list[@]})"
+      echo "File count error sample ${samplename} found (\${list[@]})"
       false
     fi
     """
@@ -301,7 +308,7 @@ process crams_to_fastq {
     output: 
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_irods
         file('*.lostcause.txt') optional true into ch_lostcause_cram
-        file('numreads.txt') optional true into ch_numreads
+        file('numreads.txt') optional true into ch_numreads_crams
     script:
 
         // 0.7 factor below: see https://github.com/samtools/samtools/issues/494
@@ -929,7 +936,8 @@ EOF
     """
 }
 
-ch_numreads
+ch_numreads_crams
+  .mix(ch_numreads_fastq, ch_numreads_fastq_se)
   .map { it.text.trim().toBigInteger() }
   .sum()
   .subscribe{ n_numreads = it }
