@@ -20,6 +20,7 @@ params.run_multiqc  = true
 params.run_fastqc   = true
 params.run_rnaseq   = true     // feature counts; featureCounts with one of STAR, hisat2, salmon
 params.run_mixcr    = false
+params.run_bracer   = false
 params.run_hisat2   = true
 params.run_salmon   = true
 params.save_bam     = false
@@ -29,6 +30,7 @@ params.min_pct_aln  = 5
 params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
 
+params.bracer_genometag = 'Hsap'
 
 n_numreads = 0
 
@@ -346,7 +348,7 @@ process crams_to_fastq {
 
 ch_fastqs_irods
   .mix(ch_fastqs_dirpe, ch_fastqs_dirse)
-  .into{ ch_rnaseq; ch_fastqc; ch_mixcr }
+  .into{ ch_rnaseq; ch_fastqc; ch_mixcr; ch_bracer }
 
 ch_rnaseq
   .until{ ! params.run_rnaseq  }
@@ -374,7 +376,7 @@ process fastqc {
 }
 
 process mixcr {
-    tag {samplename}
+    tag "$samplename"
     publishDir "${params.outdir}/mixcr/", mode: 'copy',
       saveAs: { filename -> "${samplename.md5()[0..1]}/$samplename/$filename" }
 
@@ -394,6 +396,44 @@ process mixcr {
     mixcr align --species hsa -t ${task.cpus} $reads ${samplename}.alignments.vdjca
     mixcr assemble -t ${task.cpus} ${samplename}.alignments.vdjca ${samplename}.clones.clns
     mixcr exportClones ${samplename}.clones.clns ${samplename}.full_clones.txt
+    """
+}
+
+
+process bracer_assemble {
+    tag "$samplename"
+
+    when:
+    params.run_bracer
+
+    input:
+    set val(samplename), file(reads) from ch_bracer
+
+    output:
+    file('out_ass/out-*') into ch_bracer_summarise
+
+    script:
+    """
+          # output created in out_ass/out-${samplename} 
+    bracer assemble -p ${task.cpus} -s ${params.bracer_genometag} out-${samplename} out_ass $reads
+    """
+}
+
+
+process bracer_summarise {
+    tag "$samplename"
+    publishDir "${params.outdir}/combined", mode: 'copy'      // TODO: meaningful tag, e.g. studyID.
+
+    input:
+    file('in_ass/*') from ch_bracer_summarise.collect()
+
+    output:
+    file('in_ass/filtered_BCR_summary')
+
+    script:
+    """
+          # all the output directories of the form out-${samplename} are subdirectories of in_ass.
+    bracer summarise in_ass
     """
 }
 
