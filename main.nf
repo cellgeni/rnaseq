@@ -67,6 +67,7 @@ def helpMessage() {
       --run_hisat2    [$params.run_hisat2]
       --run_salmon    [$params.run_salmon]
       --run_mixcr     [$params.run_mixcr]
+      --run_bracer    [$params.run_bracer]
       --run_fastqc    [$params.run_fastqc]
       --run_multiqc   [$params.run_multiqc]
       --save_bam      [$params.save_bam]
@@ -425,7 +426,7 @@ process bracer_assemble {
 
 
 process bracer_summarise {
-    tag "$samplename"
+    tag "bracer summarise"
     publishDir "${params.outdir}/combined", mode: 'copy'      // TODO: meaningful tag, e.g. studyID.
 
     input:
