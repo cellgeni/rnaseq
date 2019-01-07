@@ -413,12 +413,13 @@ process bracer_assemble {
     set val(samplename), file(reads) from ch_bracer
 
     output:
-    file('out_ass/out-*') into ch_bracer_summarise
+    file('out_asm/out-*') into ch_bracer_summarise
 
     script:
+    spec = params.bracer_genometag
     """
-          # output created in out_ass/out-${samplename} 
-    bracer assemble -p ${task.cpus} -s ${params.bracer_genometag} out-${samplename} out_ass $reads
+          # output created in out_asm/out-${samplename} 
+    bracer assemble -p ${task.cpus} -s $spec out-${samplename} out_asm $reads
     """
 }
 
@@ -428,15 +429,16 @@ process bracer_summarise {
     publishDir "${params.outdir}/combined", mode: 'copy'      // TODO: meaningful tag, e.g. studyID.
 
     input:
-    file('in_ass/*') from ch_bracer_summarise.collect()
+    file('in_asm/*') from ch_bracer_summarise.collect()
 
     output:
-    file('in_ass/filtered_BCR_summary')
+    file('in_asm/filtered_BCR_summary')
 
     script:
+    spec = params.bracer_genometag
     """
-          # all the output directories of the form out-${samplename} are subdirectories of in_ass.
-    bracer summarise in_ass
+          # all the output directories of the form out-${samplename} are subdirectories of in_asm.
+    bracer summarise -s $spec in_asm
     """
 }
 
