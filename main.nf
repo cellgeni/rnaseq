@@ -401,6 +401,9 @@ process mixcr {
 }
 
 
+    // TODO: we unzip fastqs here, so we spend unnecessary time zipping/unzipping.
+    // Options are (1) make zipping optional (2) extract a pure bracer pipeline
+    // (3) ...
 process bracer_assemble {
     tag "$samplename"
 
@@ -415,9 +418,13 @@ process bracer_assemble {
 
     script:
     spec = params.bracer_genometag
+    f1gz = reads[0]
+    f2gz = reads[1]
     """
+    gunzip -c $f1gz > f1
+    gunzip -c $f2gz > f2
           # output created in out_asm/out-${samplename} 
-    bracer assemble -p ${task.cpus} -s $spec out-${samplename} out_asm $reads
+    bracer assemble -p ${task.cpus} -s $spec out-${samplename} out_asm f1 f2
     """
 }
 
