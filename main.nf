@@ -438,7 +438,7 @@ process bracer_summarise {
     script:
     spec = params.bracer_genometag
     """
-          # all the output directories of the form out-${samplename} are subdirectories of in_asm.
+          # all the output directories of the form out-{samplename} are subdirectories of in_asm.
     bracer summarise -s $spec in_asm
     """
 }
