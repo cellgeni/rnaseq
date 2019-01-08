@@ -425,6 +425,7 @@ process bracer_assemble {
     f2gz = reads[1]
     """
           # on k8s weird errors happen where only f1 is created.
+    sleep 1
     gunzip -c $f1gz > f1; sleep 1
     gunzip -c $f2gz > f2; sleep 1
           # output created in out_asm/out-${samplename} 
