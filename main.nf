@@ -990,9 +990,12 @@ EOF
     """
 }
 
+                      // The try below is to work around zero-length-string
+                      // errors found sometimes with -resume. A diagnosis is needed for
+                      // that. TODO.
 ch_numreads_crams
   .mix(ch_numreads_fastq, ch_numreads_fastq_se)
-  .map { it.text.trim().toBigInteger() }
+  .map { try { a = it.text.trim().toBigInteger() } catch(e) { a = 0 }; a }
   .sum()
   .subscribe{ n_numreads = it }
 
