@@ -6,6 +6,8 @@
 
 ? add ps to bracer docker image
 
+- unexpected end of file for bracer gunzip
+
 - Zero length biginteger; mmm. This is resume again. Why is NF sending
   empty files?
 
