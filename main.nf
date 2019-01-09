@@ -424,8 +424,12 @@ process bracer_assemble {
     f2gz = reads[1]
     """
           # on k8s weird errors happen: gzip: Immunodeficiency7112625_1.fastq.gz: unexpected end of file
-    gunzip -c $f1gz > f1
-    gunzip -c $f2gz > f2
+    f1=\$(readlink -f $f1gz)
+    f2=\$(readlink -f $f2gz)
+    touch \$f1
+    touch \$f2
+    zcat  \$f1 > f1
+    zcat  \$f2 > f2
           # output created in out_asm/out-${samplename} 
     bracer assemble -p ${task.cpus} -s $spec out-${samplename} out_asm f1 f2
     """
