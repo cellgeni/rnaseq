@@ -340,6 +340,8 @@ process crams_to_fastq {
           -@ ${task.cpus} \\
           -1 \$f1 -2 \$f2 \\
           -
+      sync \$f1 \$f2          # this line and next to tackle k8s weirdness (see k8s)
+      sleep 1
     else
       echo -e "${samplename}\\tcram\\tlowreads" > ${samplename}.lostcause.txt
     fi
@@ -421,10 +423,9 @@ process bracer_assemble {
     f1gz = reads[0]
     f2gz = reads[1]
     """
-          # on k8s weird errors happen where only f1 is created.
-    sleep 1
-    gunzip -c $f1gz > f1; sleep 1
-    gunzip -c $f2gz > f2; sleep 1
+          # on k8s weird errors happen: gzip: Immunodeficiency7112625_1.fastq.gz: unexpected end of file
+    gunzip -c $f1gz > f1
+    gunzip -c $f2gz > f2
           # output created in out_asm/out-${samplename} 
     bracer assemble -p ${task.cpus} -s $spec out-${samplename} out_asm f1 f2
     """
