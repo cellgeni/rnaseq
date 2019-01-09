@@ -2,6 +2,13 @@
 
 ====== general
 
+- lostcause [ text: 'lowmapping; ] has issues with -resume on k8s
+
+? add ps to bracer docker image
+
+- Zero length biginteger; mmm. This is resume again. Why is NF sending
+  empty files?
+
 (!) restore irods resumption in case of no files.
 
 (!) submodule cellgeni/utils
