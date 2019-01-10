@@ -427,6 +427,7 @@ process bracer_assemble {
     f2gz = reads[1]
     """
           # on k8s weird errors happen: gzip: Immunodeficiency7112625_1.fastq.gz: unexpected end of file
+    sleep 60
     f1=\$(readlink -f $f1gz)
     f2=\$(readlink -f $f2gz)
     touch \$f1
