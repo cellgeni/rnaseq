@@ -410,7 +410,8 @@ n_star_lowmapping = 0
 def star_filter(logs) {
     def percent_aligned = 0
     logs.eachLine { line ->
-        if ((matcher = line =~ /Uniquely mapped reads %\s*\|\s*([\d\.]+)%/)) {
+        matcher = line =~ /Uniquely mapped reads %\s*\|\s*([\d\.]+)%/
+        if (matcher.matches()) {
             percent_aligned = matcher[0][1]
         }
     }
@@ -551,7 +552,8 @@ def hisat2_filter(logs) {
         // if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
         //     percent_aligned = matcher[0][1]          
         // }
-        if ((matcher = line =~ /Aligned concordantly 1 time: \s*(\d+)\s+\((.*)%\)/)) {
+        matcher = line =~ /Aligned concordantly 1 time: \s*(\d+)\s+\((.*)%\)/
+        if (matcher.matches()) {
           percent_aligned = matcher[0][2]
         }
     }
