@@ -405,7 +405,7 @@ process mixcr {
 n_star_lowmapping = 0
 
 def star_filter(logs) {
-    def percent_aligned = 0
+    def percent_aligned = 100
     logs.eachLine { line ->
         matcher = line =~ /Uniquely mapped reads %\s*\|\s*([\d\.]+)%/
         if (matcher.matches()) {
@@ -544,7 +544,7 @@ process salmon {
 n_hisat2_lowmapping = 0
 
 def hisat2_filter(logs) {
-    def percent_aligned = 0
+    def percent_aligned = 100
     logs.eachLine { line ->
         // if ((matcher = line =~ /Overall alignment rate: \s*([\d\.]+)%/)) {
         //     percent_aligned = matcher[0][1]          
