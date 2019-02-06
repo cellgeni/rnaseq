@@ -4,6 +4,11 @@
 
 - lostcause [ text: 'lowmapping; ] has issues with -resume on k8s
 
+- irods.sh has diverged from guitar/bin/irods.sh.  The latter has more features
+  and is the one svd uses interactively;
+  This irods.sh can use iget threads and uses the 'green' irods hack.
+  Probably best to merge them at some point.
+
 ? add ps to bracer docker image
 
 - unexpected end of file for bracer gunzip

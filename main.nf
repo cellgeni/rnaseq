@@ -29,6 +29,13 @@ params.min_pct_aln  = 5
 params.pe_suffix_pattern  = '_{1,2}.fastq.gz'
 params.se_suffix    = '.fastq.gz'
 
+params.dropirodsqc  = false
+dropqc              = ""
+
+if (params.dropirodsqc) {
+  dropqc = '-Q'
+}
+
 
 params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
@@ -231,7 +238,7 @@ process irods {
 
     script:
     """
-    if bash -euo pipefail irods.sh -N ${task.cpus} -t ${params.studyid} -s ${samplename}; then
+    if bash -euo pipefail irods.sh -N ${task.cpus} -t ${params.studyid} -s ${samplename} ${dropqc}; then
       true
     else
       stat=\$?
