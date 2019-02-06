@@ -27,7 +27,7 @@ params.save_bam     = false
 params.min_reads    = 500
 params.min_pct_aln  = 5
 params.pe_suffix_pattern  = '_{1,2}.fastq.gz'
-params.se_suffix  = '.fastq.gz'
+params.se_suffix    = '.fastq.gz'
 
 
 params.outdir = 'results'
@@ -250,6 +250,7 @@ process irods {
 
 process get_fastq_files_single {
     tag "$samplename"
+    errorStrategy 'terminate'
 
     when:
     params.fastqdir && params.singleend
@@ -275,6 +276,7 @@ process get_fastq_files_single {
 
 process get_fastq_files {
     tag "${samplename}"
+    errorStrategy 'terminate'
 
     when:
     params.fastqdir && !params.singleend
