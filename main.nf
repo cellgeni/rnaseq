@@ -267,7 +267,7 @@ process get_fastq_files_single {
       echo "Fastq file \$name not found"
       false
     else
-      ln -s \$name .
+      ln -s \$name ${samplename}.fastq.gz
       echo \$(( \$(zcat \$fname | wc -l) / 4)) > numreads.txt
     fi
     """
@@ -292,8 +292,8 @@ process get_fastq_files {
     if [[ 2 == \${#list[@]} ]]; then
       f1=\${list[0]}
       f2=\${list[1]}
-      ln -s \$f1 .
-      ln -s \$f2 .
+      ln -s \$f1 ${samplename}_1.fastq.gz
+      ln -s \$f2 ${samplename}_2.fastq.gz
       echo  \$(( \$(zcat \$f1 | wc -l) / 2)) > numreads.txt
       # TODO: we could do the same for f2 and introduce check. #shouldWe?
     else
