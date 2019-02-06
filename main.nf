@@ -25,6 +25,9 @@ params.run_salmon   = true
 params.save_bam     = false
 params.min_reads    = 500
 params.min_pct_aln  = 5
+params.pe_suffix_pattern  = '_{1,2}.fastq.gz'
+params.se_suffix  = '.fastq.gz'
+
 
 params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
@@ -254,7 +257,7 @@ process get_fastq_files_single {
         set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
     script:
     """
-    name=${params.fastqdir}/${samplename}.fastq.gz
+    name=${params.fastqdir}/${samplename}{$params.se_suffix}
     if [[ ! -e \$name ]]; then
       echo "Count file \$name not found"
       false
@@ -277,7 +280,7 @@ process get_fastq_files {
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
     script:
     """
-    list=( \$(ls ${params.fastqdir}/${samplename}_{1,2}.fastq.gz) )
+    list=( \$(ls ${params.fastqdir}/${samplename}${params.pe_suffix_pattern}) )
     if [[ 2 == \${#list[@]} ]]; then
       ln -s \${list[0]} .
       ln -s \${list[1]} .
