@@ -91,10 +91,10 @@ export numthread
 if [[ $(echo $IMETA_OUTPUT) == 'No rows found' ]]; then
     exit 64
 else
+        # Took out iget option to obtain green replicate number: \$(ils -l $1/$2 | awk "/green/ {print \\\$2; exit}")
     echo "${IMETA_OUTPUT}" \
-    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print qq{iget -N $ENV{numthread} -K -n \$(ils -l $1/$2 | awk "/green/ {print \\\$2; exit}") $1/$2\n} }' \
+    | perl -0777 -ne 'while (/collection:\s*(\S+)\ndataObj:\s*(\S+)/gs) { print qq{iget -N $ENV{numthread} -K $1/$2\n} }' \
     | bash -e
 fi
 
-# iget -k -n $(ils -l /seq/home/bh9#Sanger1/thing | awk '/green/ {print $2; exit}') /seq/home/bh9#Sanger1/thing
 
