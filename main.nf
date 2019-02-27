@@ -336,7 +336,7 @@ process crams_to_fastq {
     f1=${samplename}_1.fastq.gz
     f2=${samplename}_2.fastq.gz
 
-    numreads=\$(samtools view --input-fmt-option required_fields=2 -c $cramfile)
+    numreads=\$(samtools view -c -F 0x900 $cramfile)
     if (( numreads >= ${params.min_reads} )); then
                               # -O {stdout} -u {no compression}
                               # -N {always append /1 and /2 to the read name}

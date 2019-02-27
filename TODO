@@ -2,18 +2,21 @@
 
 ====== general
 
+- produce correlation plots between count matrices. (star vs fc)
+
 - lostcause [ text: 'lowmapping; ] has issues with -resume on k8s
 
 - irods.sh has diverged from guitar/bin/irods.sh.  The latter has more features
   and is the one svd uses interactively;
   This irods.sh can use iget threads and uses the 'green' irods hack.
   Probably best to merge them at some point.
+  Green hack has now been removed.
 
 ? add ps to bracer docker image
 
 - unexpected end of file for bracer gunzip
 
-- Zero length biginteger; mmm. This is resume again. Why is NF sending
+- (rare lesser spotted error) Zero length biginteger; mmm. This is resume again. Why is NF sending
   empty files?
 
 (!) restore irods resumption in case of no files.
