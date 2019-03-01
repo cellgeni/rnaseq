@@ -59,11 +59,15 @@ def helpMessage() {
       -profile                      Hardware config to use. farm3 / farm4 / docker
       --genome                      Name of iGenomes reference
       --samplefile                  File with sample IDs. If input is from --fastqdir,
-                                    files names will be expected as <sampleid>.fastq.gz
+                                    files names will be expected as <sampleid>.fastq.gz (single end)
+                                    or <sampleid>_1.fastq.gz and <sampleid>_2.fastq.gz
 
     Important options:
       --studyid                     Unless input is from --fastqdir, specify a studyID.
                                     Input will be queried in IRODS using ids from samplefile.
+      --fastqdir                  ! If specified, use the absolute path of the directory.
+                                    Input will be fastq files, with the base name specified by
+                                    sample IDs from the sample file (see under --samplefile).
       --runtag                      Will be included e.g. in count matrix names. Suggested: studyid
       --outdir        [$params.outdir]
 
@@ -892,15 +896,17 @@ process merge_featureCounts {
     output:
     file '*-fc-genecounts.txt'
 
-    script:
+    shell:
+    suffix=['star':'.star.gene.fc.txt', 'hisat2':'.hisat2.gene.fc.txt']
     aligner = metafile.baseName   // not strictly necessary
     outputname = "${params.runtag}-${aligner}-fc-genecounts.txt"
-    """
-    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-      --rm-suffix .gene.featureCounts.txt                             \\
+    thesuffix  = suffix[aligner] ?: '.txt'
+    '''
+    python3 !{workflow.projectDir}/bin/merge_featurecounts.py        \\
+      --rm-suffix !{thesuffix}                                       \\
       -c 1 --skip-comments --header                                  \\
-      -o $outputname -I $metafile
-    """
+      -o !{outputname} -I !{metafile}
+    '''
 }
 
 process merge_salmoncounts {
@@ -920,11 +926,11 @@ process merge_salmoncounts {
     def outgenesname = "${params.runtag}-salmon-genecounts.txt"
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-      --rm-suffix _1.quant.genes.sf                                   \\
+      --rm-suffix .quant.genes.sf                                     \\
       -c -1 --skip-comments --header                                  \\
       -o $outgenesname -I $input_genes
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
-      --rm-suffix _1.quant.sf                                         \\
+      --rm-suffix .quant.sf                                           \\
       -c -1 --skip-comments --header                                  \\
       -o $outtransname -I $input_trans
     """

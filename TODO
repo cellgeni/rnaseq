@@ -2,14 +2,10 @@
 
 naming of columns:
 
+(merge feature counts used for both hisat2 and star; have to do it in script)
+
 ==> study4294-tic218-hisat2-fc-genecounts.txt <==
 ENSEMBL_ID  MICA_collection-17817.hisat2.gene.fc.txt  MICA_collection-17818.hisat2
-
-==> study4294-tic218-salmon-genecounts.txt <==
-ENSEMBL_ID  MICA_collection-17817.quant.genes.sf  MICA_collection-17818.quant.gene
-
-==> study4294-tic218-salmon-transcounts.txt <==
-ENSEMBL_ID  MICA_collection-17817.quant.sf  MICA_collection-17818.quant.sf  MICA_co
 
 ==> study4294-tic218-star-fc-genecounts.txt <==
 ENSEMBL_ID  MICA_collection-17817.star.gene.fc.txt  MICA_collection-17818.star.gen
