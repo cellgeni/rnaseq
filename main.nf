@@ -583,6 +583,7 @@ process salmon {
     output:
     file "${samplename}.quant.sf" into ch_salmon_trans
     file "${samplename}.quant.genes.sf" into ch_salmon_genes
+    file "my_outs/${samplename}" into ch_alignment_logs_salmon
 
     script:
     """
@@ -603,6 +604,10 @@ process salmon {
         --numBootstraps 100
     mv quant.sf ${samplename}.quant.sf
     mv quant.genes.sf ${samplename}.quant.genes.sf
+    mkdir -p my_outs/${samplename}/libParams
+    mkdir -p my_outs/${samplename}/aux_info
+    ln -f aux_info/meta_info.json my_outs/${samplename}/aux_info/meta_info.json
+    ln -f libParams/flenDist.txt  my_outs/${samplename}/libParams/flenDist.txt
     """
 
     // TODO: prepare columns for merging; extract correct column and transpose (paste) it.
@@ -975,6 +980,7 @@ process multiqc {
     file ('featureCounts_biotype/*') from ch_multiqc_fcbiotype_aligner.collect().ifEmpty([])
     file ('star/*') from ch_alignment_logs_star.collect().ifEmpty([])
     file ('hisat2/*') from ch_alignment_logs_hisat2.collect().ifEmpty([])
+    file ('salmon/*') from ch_alignment_logs_salmon.collect().ifEmpty([])
 
     output:
     file "*_multiqc.html"
@@ -984,7 +990,7 @@ process multiqc {
     def filename = "${params.runtag}_multiqc.html"
     def reporttitle = "${params.runtag} (cellgeni/rnaseq)"
     """
-    multiqc . -f --title "$reporttitle" --filename "$filename" -m custom_content -m featureCounts -m star -m fastqc
+    multiqc . -f --title "$reporttitle" --filename "$filename" -m custom_content -m featureCounts -m star -m fastqc -m salmon
     """
 }
 
