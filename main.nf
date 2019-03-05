@@ -6,11 +6,14 @@ vim: syntax=groovy
                          B U L K - R N A S E Q    P I P E L I N E
 ========================================================================================
  Cellular Genetics bulk-RNA-Seq analysis pipeline, Wellcome Sanger Institute
- Documentation:   https://github.com/cellgeni/rnaseq
- Authors:
+ Documentation: https://github.com/cellgeni/rnaseq
+ This pipeline was forked from https://github.com/nf-core/rnaseq
+ Post-fork development at Wellcome Sanger Institute:
     Stijn van Dongen <svd@sanger.ac.uk> (main developer)
     Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
-    Original development by SciLifeLabs
+ Original development by SciLifeLabs
+    Phil Ewels @ewels <phil.ewels@scilifelab.se>
+    Rickard Hammarén @Hammarn  <rickard.hammaren@scilifelab.se>
 ----------------------------------------------------------------------------------------
 */
 
