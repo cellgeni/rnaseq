@@ -9,7 +9,7 @@ vim: syntax=groovy
  Documentation: https://github.com/cellgeni/rnaseq
  This pipeline was forked from https://github.com/nf-core/rnaseq
  Post-fork development at Wellcome Sanger Institute:
-    Stijn van Dongen <svd@sanger.ac.uk> (main developer)
+    Stijn van Dongen <svd@sanger.ac.uk>
     Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
  Original development by SciLifeLabs
     Phil Ewels @ewels <phil.ewels@scilifelab.se>
