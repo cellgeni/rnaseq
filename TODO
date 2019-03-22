@@ -1,5 +1,9 @@
 
 
+name checks on columns, rather than using 'last column',
+see e.g. salmon; should use 'NumReads', not -1.
+
+
 naming of columns:
 
 (merge feature counts used for both hisat2 and star; have to do it in script)
