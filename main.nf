@@ -925,17 +925,28 @@ process merge_salmoncounts {
     file '*counts.txt'
 
     script:
-    def outtransname = "${params.runtag}-salmon-transcounts.txt"
-    def outgenesname = "${params.runtag}-salmon-genecounts.txt"
+    def outtranscount = "${params.runtag}-salmon-transcounts.txt"
+    def outgenescount = "${params.runtag}-salmon-genecounts.txt"
+    def outtranstpm   = "${params.runtag}-salmon-transtpm.txt"
+    def outgenestpm   = "${params.runtag}-salmon-genetpm.txt"
     """
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .quant.genes.sf                                     \\
       -c -1 --skip-comments --header                                  \\
-      -o $outgenesname -I $input_genes
+      -o $outgenescount -I $input_genes
     python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
       --rm-suffix .quant.sf                                           \\
       -c -1 --skip-comments --header                                  \\
-      -o $outtransname -I $input_trans
+      -o $outtranscount -I $input_trans
+
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      --rm-suffix .quant.genes.sf                                     \\
+      -c -2 --skip-comments --header                                  \\
+      -o $outgenestpm -I $input_genes
+    python3 $workflow.projectDir/bin/merge_featurecounts.py           \\
+      --rm-suffix .quant.sf                                           \\
+      -c -2 --skip-comments --header                                  \\
+      -o $outtranstpm -I $input_trans
     """
 }
 
