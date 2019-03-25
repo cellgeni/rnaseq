@@ -922,7 +922,7 @@ process merge_salmoncounts {
     file input_genes from ch_salmon_genes.map { it.toString() }.collectFile(name: 'genes.meta', newLine: true)
 
     output:
-    file '*counts.txt'
+    set file('*counts.txt'), file('*tpm.txt')
 
     script:
     def outtranscount = "${params.runtag}-salmon-transcounts.txt"
