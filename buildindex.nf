@@ -67,149 +67,164 @@ log.info summary.collect { k,v -> "${k.padRight(15)}: $v" }.join("\n")
 log.info "========================================="
 
 
-if (params.aligner == 'star') {
-  process makeSTARindex {
-      tag "$fasta"
-      publishDir "${params.outdir}/reference_genome", mode: 'copy'
+process makeSTARindex {
+    tag "$fasta"
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
-      input:
-      file fasta from ch_dna_star
-      file gtf from ch_gtf_star
+    when:
+    params.aligner == 'star'
 
-      output:
-      file "star"
+    input:
+    file fasta from ch_dna_star
+    file gtf from ch_gtf_star
 
-      script:
-      """
-      mkdir star
-      STAR \\
-          --runMode genomeGenerate \\
-          --runThreadN ${task.cpus} \\
-          --sjdbGTFfile $gtf \\
-          --sjdbOverhang ${params.star_overhang} \\
-          --genomeDir star/ \\
-          --genomeFastaFiles $fasta
-      """
-  }
+    output:
+    file "star"
 
-  // process makeBED12 {
-  //     tag "$gtf"
-  //     publishDir "${params.outdir}/reference_genome", mode: 'copy'
+    script:
+    """
+    mkdir star
+    STAR \\
+        --runMode genomeGenerate \\
+        --runThreadN ${task.cpus} \\
+        --sjdbGTFfile $gtf \\
+        --sjdbOverhang ${params.star_overhang} \\
+        --genomeDir star/ \\
+        --genomeFastaFiles $fasta
+    """
+}
 
-  //     input:
-  //     file gtf from ch_gtf_bed
+// process makeBED12 {
+//     tag "$gtf"
+//     publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
-  //     output:
-  //     file "${gtf.baseName}.bed"
+//     input:
+//     file gtf from ch_gtf_bed
 
-  //     script:
-  //     """
-  //     gtf2bed $gtf > ${gtf.baseName}.bed
-  //     """
-  // }
+//     output:
+//     file "${gtf.baseName}.bed"
+
+//     script:
+//     """
+//     gtf2bed $gtf > ${gtf.baseName}.bed
+//     """
+// }
+
+
+process makeSalmonIndex {
+    tag "$fasta"
+    publishDir "${params.outdir}/reference_genome", mode: 'link'
+
+    when:
+    params.aligner == 'salmon'
+
+    input:
+    file fasta from ch_cdna_salmon
+
+    output:
+    file "salmon"
+
+    script:
+    """
+    mkdir salmon
+    salmon index        \\
+        -t $fasta       \\
+        -p ${task.cpus} \\
+        -i salmon
+    """
+}
+
+process makeTransGeneMatrix {
+    tag "$fasta"
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
+
+    when:
+    params.aligner == 'salmon'
+
+    input:
+    file fasta from ch_cdna_transgene
+
+    output:
+    file "trans_gene*.txt"
+
+    shell:
+    '''
+    perl -ne 'if (/^>(\\w+)(?:\\.\\d+)\\s+.*?gene:(\\w+)/){print "$1\\t$2\\n"}elsif(/^>(ERCC\\S+)/){print"$1\\t$1-gene\\n"}' \\
+      !{fasta} > trans_gene.txt
+    if (( $(grep -c ENST trans_gene.txt) < 1000 )); then
+       echo "Not enough Ensembl transcripts. This test is present because this script section is ugly.'
+       echo 'Currently it makes an effort to recognise ERCC information.'
+       echo 'If you want to run a gencode genome, update this section, make this file aware of gencode/Ensembl distinction'
+       false
+    fi
+    '''
 }
 
 
-if(params.aligner == 'salmon') {
+process hisat2_splicesites {
 
-    process makeSalmonIndex {
-        tag "$fasta"
-        publishDir "${params.outdir}/reference_genome", mode: 'copy'
+    label 'hisat2_build'
+    tag "$gtf"
 
-        input:
-        file fasta from ch_cdna_salmon
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
-        output:
-        file "salmon"
+    when:
+    params.aligner == 'hisat2'
 
-        script:
-        """
-        mkdir salmon
-        salmon index \\
-            -t $fasta \\
-            -i salmon
-        """
-    }
+    input:
+    file gtf from ch_gtf_hisat2_splice
 
-    process makeTransGeneMatrix {
-        tag "$fasta"
-        publishDir "${params.outdir}/reference_genome", mode: 'copy'
+    output:
+    file "${gtf.baseName}.hisat2_splice_sites.txt" into ch_hisat2_index_splice
 
-        input:
-        file fasta from ch_cdna_transgene
-
-        output:
-        file "trans_gene*.txt"
-
-        script:
-        """
-        perl -ne '/^>(\\w+)\\s+.*?gene:(\\w+)\\s+/ && print "\$1\\t\$2\n"' $fasta > trans_gene.txt
-        """
-    }
+    script:
+    """
+    hisat2_extract_splice_sites.py $gtf > ${gtf.baseName}.hisat2_splice_sites.txt
+    """
 }
 
+process hisat2_index {
 
+    label 'hisat2_build'
+    tag "$fasta"
 
-if (params.aligner == 'hisat2') {
+    publishDir "${params.outdir}/reference_genome", mode: 'copy'
 
-    process hisat2_splicesites {
+    when:
+    params.aligner == 'hisat2'
 
-        label 'hisat2_build'
-        tag "$gtf"
+    input:
+    file fasta from ch_dna_hisat2
+    file indexing_splicesites from ch_hisat2_index_splice
+    file gtf from ch_gtf_hisat2_index
 
-        publishDir "${params.outdir}/reference_genome", mode: 'copy'
+    output:
+    file "${fasta.baseName}.*.ht2"
 
-        input:
-        file gtf from ch_gtf_hisat2_splice
-
-        output:
-        file "${gtf.baseName}.hisat2_splice_sites.txt" into ch_hisat2_index_splice
-
-        script:
-        """
-        hisat2_extract_splice_sites.py $gtf > ${gtf.baseName}.hisat2_splice_sites.txt
-        """
+    script:
+    if( task.memory == null ){
+        log.info "[HISAT2 index build] Available memory not known - defaulting to 0. Specify process memory requirements to change this."
+        avail_mem = 0
+    } else {
+        log.info "[HISAT2 index build] Available memory: ${task.memory}"
+        avail_mem = task.memory.toGiga()
     }
-
-    process hisat2_index {
-
-        label 'hisat2_build'
-        tag "$fasta"
-
-        publishDir "${params.outdir}/reference_genome", mode: 'copy'
-
-        input:
-        file fasta from ch_dna_hisat2
-        file indexing_splicesites from ch_hisat2_index_splice
-        file gtf from ch_gtf_hisat2_index
-
-        output:
-        file "${fasta.baseName}.*.ht2"
-
-        script:
-        if( task.memory == null ){
-            log.info "[HISAT2 index build] Available memory not known - defaulting to 0. Specify process memory requirements to change this."
-            avail_mem = 0
-        } else {
-            log.info "[HISAT2 index build] Available memory: ${task.memory}"
-            avail_mem = task.memory.toGiga()
-        }
-        if( avail_mem > params.hisatBuildMemory ){
-            log.info "[HISAT2 index build] Over ${params.hisatBuildMemory} GB available, so using splice sites and exons in HISAT2 index"
-            extract_exons = "hisat2_extract_exons.py $gtf > ${gtf.baseName}.hisat2_exons.txt"
-            ss = "--ss $indexing_splicesites"
-            exon = "--exon ${gtf.baseName}.hisat2_exons.txt"
-        } else {
-            log.info "[HISAT2 index build] Less than ${params.hisatBuildMemory} GB available, so NOT using splice sites and exons in HISAT2 index."
-            log.info "[HISAT2 index build] Use --hisatBuildMemory [small number] to skip this check."
-            extract_exons = ''
-            ss = ''
-            exon = ''
-        }
-        """
-        $extract_exons
-        hisat2-build -p ${task.cpus} $ss $exon $fasta ${fasta.baseName}.hisat2_index
-        """
+    if( avail_mem > params.hisatBuildMemory ){
+        log.info "[HISAT2 index build] Over ${params.hisatBuildMemory} GB available, so using splice sites and exons in HISAT2 index"
+        extract_exons = "hisat2_extract_exons.py $gtf > ${gtf.baseName}.hisat2_exons.txt"
+        ss = "--ss $indexing_splicesites"
+        exon = "--exon ${gtf.baseName}.hisat2_exons.txt"
+    } else {
+        log.info "[HISAT2 index build] Less than ${params.hisatBuildMemory} GB available, so NOT using splice sites and exons in HISAT2 index."
+        log.info "[HISAT2 index build] Use --hisatBuildMemory [small number] to skip this check."
+        extract_exons = ''
+        ss = ''
+        exon = ''
     }
+    """
+    $extract_exons
+    hisat2-build -p ${task.cpus} $ss $exon $fasta ${fasta.baseName}.hisat2_index
+    """
 }
+
 
