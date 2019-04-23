@@ -24,6 +24,7 @@ params.run_fastqc   = true
 params.run_rnaseq   = true     // feature counts; featureCounts with one of STAR, hisat2, salmon
 params.run_mixcr    = false
 params.run_bracer   = false
+params.run_tracer   = false
 params.run_hisat2   = true
 params.run_salmon   = true
 params.save_bam     = false
@@ -44,6 +45,7 @@ params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
 
 params.bracer_genometag = 'Hsap'
+params.tracer_genometag = 'Hsap'
 
 n_numreads = 0
 
@@ -82,6 +84,7 @@ def helpMessage() {
       --run_salmon    [$params.run_salmon]
       --run_mixcr     [$params.run_mixcr]
       --run_bracer    [$params.run_bracer]
+      --run_tracer    [$params.run_tracer]
       --run_fastqc    [$params.run_fastqc]
       --run_multiqc   [$params.run_multiqc]
       --save_bam      [$params.save_bam]
@@ -474,6 +477,52 @@ process bracer_summarise {
     bracer summarise -s $spec in_asm
     """
 }
+
+
+process tracer_assemble {
+    tag "$samplename"
+
+    when:
+    params.run_tracer
+
+    input:
+    set val(samplename), file(reads) from ch_tracer
+
+    output:
+    file('out_asm/out-*') into ch_tracer_summarise
+
+    shell:
+    spec = params.tracer_genometag
+    f1gz = reads[0]
+    f2gz = reads[1]
+    '''
+          # ? output created in out_asm/out-${samplename} 
+    zcat  !{f1gz} > f1
+    zcat  !{f2gz} > f2
+    tracer assemble -p !{{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
+    '''
+}
+
+
+process tracer_summarise {
+    tag "tracer summarise"
+    publishDir "${params.outdir}/combined", mode: 'copy'      // TODO: meaningful tag, e.g. studyID.
+
+    input:
+    file('in_asm/*') from ch_tracer_summarise.collect()
+
+    output:
+    file('in_asm/filtered_BCR_summary')
+
+    script:
+    spec = params.tracer_genometag
+    """
+          # all the output directories of the form out-{samplename} are subdirectories of in_asm.
+    tracer summarise -s $spec in_asm
+    """
+}
+
+
 
 
 
