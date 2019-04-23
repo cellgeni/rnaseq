@@ -187,6 +187,7 @@ summary['Biotype tag']        = gene_biotype
 summary['Strandedness']       = ( unstranded ? 'None' : forward_stranded ? 'Forward' : reverse_stranded ? 'Reverse' : 'None' )
 summary['STAR Index']         = params.star_index
 summary['Salmon Index']       = params.salmon_index
+summary['Salmon t/g Map']     = params.salmon_trans_gene
 summary['HISAT2 Index']       = params.hisat2_index
 summary['GTF Annotation']     = params.gtf
 summary['BED Annotation']     = params.bed12
