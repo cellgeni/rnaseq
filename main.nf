@@ -374,7 +374,7 @@ process crams_to_fastq {
 
 ch_fastqs_irods
   .mix(ch_fastqs_dirpe, ch_fastqs_dirse)
-  .into{ ch_rnaseq; ch_fastqc; ch_mixcr; ch_bracer }
+  .into{ ch_rnaseq; ch_fastqc; ch_mixcr; ch_bracer; ch_tracer }
 
 ch_rnaseq
   .until{ ! params.run_rnaseq  }
