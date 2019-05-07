@@ -499,7 +499,7 @@ process tracer_assemble {
           # ? output created in out_asm/out-${samplename} 
     zcat  !{f1gz} > f1
     zcat  !{f2gz} > f2
-    tracer assemble -p !{{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
+    tracer assemble -p !{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
     '''
 }
 
@@ -512,7 +512,7 @@ process tracer_summarise {
     file('in_asm/*') from ch_tracer_summarise.collect()
 
     output:
-    file('in_asm/filtered_BCR_summary')
+    file('in_asm/filtered_TCRAB_summary')
 
     script:
     spec = params.tracer_genometag
