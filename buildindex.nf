@@ -152,7 +152,7 @@ process makeTransGeneMatrix {
     perl -ne 'if (/^>(\\w+)(?:\\.\\d+)\\s+.*?gene:(\\w+)/){print "$1\\t$2\\n"}elsif(/^>(ERCC\\S+)/){print"$1\\t$1-gene\\n"}' \\
       !{fasta} > trans_gene.txt
     if (( $(grep -c ENST trans_gene.txt) < 1000 )); then
-       echo "Not enough Ensembl transcripts. This test is present because this script section is ugly.'
+       echo 'Not enough Ensembl transcripts. This test is present because this script section is ugly.'
        echo 'Currently it makes an effort to recognise ERCC information.'
        echo 'If you want to run a gencode genome, update this section, make this file aware of gencode/Ensembl distinction'
        false
