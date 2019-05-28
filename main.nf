@@ -481,6 +481,7 @@ process bracer_summarise {
 
 process tracer_assemble {
     tag "$samplename"
+    publishDir "${params.outdir}/samples", mode: 'copy'
 
     when:
     params.run_tracer
