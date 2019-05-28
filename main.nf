@@ -499,7 +499,7 @@ process tracer_assemble {
           # ? output created in out_asm/out-${samplename} 
     zcat  !{f1gz} > f1
     zcat  !{f2gz} > f2
-    tracer assemble -p !{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
+    tracer assemble --loci A B D G -p !{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
     '''
 }
 
