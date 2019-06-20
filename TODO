@@ -1,5 +1,9 @@
 
 
+use mode: 'link' in Publishdir (hardlink)
+
+
+
 name checks on columns, rather than using 'last column',
 see e.g. salmon; should use 'NumReads', not -1.
 
