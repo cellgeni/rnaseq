@@ -500,7 +500,7 @@ process tracer_assemble {
           # ? output created in out_asm/out-${samplename} 
     zcat  !{f1gz} > f1
     zcat  !{f2gz} > f2
-    tracer assemble --loci A B D G -p !{task.cpus} -s !{spec} f1 f2 out-!{samplename} out_asm
+    tracer assemble --loci A B D G -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf f1 f2 out-!{samplename} out_asm
     '''
 }
 
@@ -519,7 +519,7 @@ process tracer_summarise {
     spec = params.tracer_genometag
     """
           # all the output directories of the form out-{samplename} are subdirectories of in_asm.
-    tracer summarise -s $spec in_asm
+    tracer summarise -p !{task.cpus} -s $spec in_asm
     """
 }
 
