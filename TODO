@@ -1,5 +1,11 @@
 
 
+! does bracer have loci like tracer does?
+
+! index naming scheme; different versions of aligner (salmon 9/11/13) per genome version (GRCh38)
+
+! versions of tools used.
+
 use mode: 'link' in Publishdir (hardlink)
 
 

@@ -45,7 +45,12 @@ params.outdir = 'results'
 params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run; e.g. studyid
 
 params.bracer_genometag = 'Hsap'
+
 params.tracer_genometag = 'Hsap'
+params.tracer_outputtag = 'summary'
+params.tracer_assemble_publish = false
+
+params.fastqc_publish = false
 
 n_numreads = 0
 
@@ -384,7 +389,7 @@ ch_rnaseq
 process fastqc {
     tag "$samplename"
     publishDir "${params.outdir}/fastqc", mode: 'copy',
-        saveAs: {filename -> filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
+        saveAs: {filename -> !params.fastqc_publish ? null : filename.indexOf(".zip") > 0 ? "zips/$filename" : "$filename"}
 
     when:
     params.run_qc && params.run_fastqc
@@ -481,7 +486,9 @@ process bracer_summarise {
 
 process tracer_assemble {
     tag "$samplename"
-    publishDir "${params.outdir}/samples", mode: 'copy'
+
+    publishDir "${params.outdir}/tracer_assemble", mode: 'copy',
+      saveAs: { filename -> params.tracer_assemble_publish ? filename : null }
 
     when:
     params.run_tracer
@@ -505,9 +512,11 @@ process tracer_assemble {
 }
 
 
+
 process tracer_summarise {
     tag "tracer summarise"
-    publishDir "${params.outdir}/combined", mode: 'copy'      // TODO: meaningful tag, e.g. studyID.
+    publishDir "${params.outdir}/combined", mode: 'copy',
+      saveAs: { filename -> "tracer_summary_${params.tracer_outputtag}" }
 
     input:
     file('in_asm/*') from ch_tracer_summarise.collect()
@@ -515,12 +524,13 @@ process tracer_summarise {
     output:
     file('in_asm/filtered_TCRAB_summary')
 
-    script:
+    shell:
     spec = params.tracer_genometag
-    """
+    '''
           # all the output directories of the form out-{samplename} are subdirectories of in_asm.
-    tracer summarise -p !{task.cpus} -s $spec in_asm
-    """
+    tracer summarise -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf in_asm
+
+    '''
 }
 
 
