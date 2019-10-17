@@ -78,6 +78,7 @@ def helpMessage() {
       --fastqdir                  ! If specified, use the absolute path of the directory.
                                     Input will be fastq files, with the base name specified by
                                     sample IDs from the sample file (see under --samplefile).
+      --bamdir                    ! If specified, use the absolute path of the directory.
       --runtag                      Will be included e.g. in count matrix names. Suggested: studyid
       --outdir        [$params.outdir]
 
@@ -115,6 +116,7 @@ if (params.help){
 params.samplefile = false
 params.studyid = -1
 params.fastqdir = false
+params.bamdir = false
 params.fcextra = ""                          // feature counts extra parameters; currently for testing
 params.singleend = false
 
@@ -146,8 +148,8 @@ unstranded = params.unstranded
 
 
 
-if (params.studyid < 0 && !params.fastqdir) {
-  exit 1, "Need --fastqdir <dirname> or --studyid <ID> option"
+if (params.studyid < 0 && !params.fastqdir && !params.bamdir) {
+  exit 1, "Need --fastqdir <dirname> or --studyid <ID> or --bamdir option"
 }
 
 
@@ -297,6 +299,36 @@ process get_fastq_files_single {
 }
 
 
+process get_fastq_files_from_bam {
+
+    tag "${samplename}"
+    errorStrategy 'terminate'
+
+    when:
+    params.bamdir
+
+    input:
+        val samplename from sample_list_dirpe.flatMap{ it.readLines() }
+    output:
+        set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_bams_dirpe
+        file('numreads.txt') optional true into ch_numreads_bam
+
+    script:
+    '''
+    bam="!{params.fastqdir}/${samplename}.bam"
+    f1="!{samplename}_1.fastq.gz"
+    f2="!{samplename}_2.fastq.gz"
+    if [[ -e $bam  ]]; then
+      samtools fastq -N -F 0x900 -@ !{task.cpus} -1 $f1 -2 $f2 $bam
+      echo  $(( $(zcat $f1 | wc -l) / 2)) > numreads.txt
+    else
+      echo "File $bam not found"
+      false
+    fi
+    '''
+}
+
+
 process get_fastq_files {
     tag "${samplename}"
     errorStrategy 'terminate'
@@ -378,7 +410,7 @@ process crams_to_fastq {
 
 
 ch_fastqs_irods
-  .mix(ch_fastqs_dirpe, ch_fastqs_dirse)
+  .mix(ch_fastqs_dirpe, ch_bams_dirpe, ch_fastqs_dirse)
   .into{ ch_rnaseq; ch_fastqc; ch_mixcr; ch_bracer; ch_tracer }
 
 ch_rnaseq
@@ -1099,7 +1131,7 @@ EOF
                       // errors found sometimes with -resume. A diagnosis is needed for
                       // that. TODO.
 ch_numreads_crams
-  .mix(ch_numreads_fastq, ch_numreads_fastq_se)
+  .mix(ch_numreads_fastq, ch_numreads_fastq_se, ch_numreads_bam)
   .map { try { a = it.text.trim().toBigInteger() } catch(e) { a = 0 }; a }
   .sum()
   .subscribe{ n_numreads = it }
