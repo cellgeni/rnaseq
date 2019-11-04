@@ -133,7 +133,6 @@ params.salmon_index = params.genome ? params.genomes[ params.genome ].salmon ?: 
 params.salmon_trans_gene = params.genome ? params.genomes[ params.genome ].salmon_trans_gene ?: false : false
 params.star_overhang = '74'
 params.gtf = params.genome ? params.genomes[ params.genome ].gtf ?: false : false
-params.bed12 = params.genome ? params.genomes[ params.genome ].bed12 ?: false : false
 params.hisat2_index = params.genome ? params.genomes[ params.genome ].hisat2 ?: false : false
 params.biotypes_header= "$baseDir/assets/biotypes_header.txt"
 
@@ -200,7 +199,6 @@ summary['Salmon Index']       = params.salmon_index
 summary['Salmon t/g Map']     = params.salmon_trans_gene
 summary['HISAT2 Index']       = params.hisat2_index
 summary['GTF Annotation']     = params.gtf
-summary['BED Annotation']     = params.bed12
 summary['Output dir']         = params.outdir
 summary['Working dir']        = workflow.workDir
 summary['Container']          = workflow.container
@@ -238,7 +236,7 @@ try {
 */
 
 Channel.fromPath(params.samplefile)
-.into { sample_list_irods; sample_list_dirpe; sample_list_dirse }
+.into { sample_list_irods; sample_list_fastqpe; sample_list_fastqse; sample_list_bampe }
 
 
 process irods {
@@ -281,7 +279,7 @@ process get_fastq_files_single {
     params.fastqdir && params.singleend
 
     input:
-        val samplename from sample_list_dirse.flatMap{ it.readLines() }
+        val samplename from sample_list_fastqse.flatMap{ it.readLines() }
     output:
         set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
         file('numreads.txt') optional true into ch_numreads_fastq_se
@@ -308,14 +306,14 @@ process get_fastq_files_from_bam {
     params.bamdir
 
     input:
-        val samplename from sample_list_dirpe.flatMap{ it.readLines() }
+        val samplename from sample_list_bampe.flatMap{ it.readLines() }
     output:
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_bams_dirpe
         file('numreads.txt') optional true into ch_numreads_bam
 
-    script:
+    shell:
     '''
-    bam="!{params.fastqdir}/${samplename}.bam"
+    bam="!{params.bamdir}/!{samplename}.bam"
     f1="!{samplename}_1.fastq.gz"
     f2="!{samplename}_2.fastq.gz"
     if [[ -e $bam  ]]; then
@@ -337,7 +335,7 @@ process get_fastq_files {
     params.fastqdir && !params.singleend
 
     input:
-        val samplename from sample_list_dirpe.flatMap{ it.readLines() }
+        val samplename from sample_list_fastqpe.flatMap{ it.readLines() }
     output:
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
         file('numreads.txt') optional true into ch_numreads_fastq
