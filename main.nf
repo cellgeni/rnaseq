@@ -47,6 +47,8 @@ params.runtag = "cgirnaseq"    // use runtag as primary tag identifying the run;
 params.bracer_genometag = 'Hsap'
 
 params.tracer_genometag = 'Hsap'
+params.tracer_fraglength = 350
+params.tracer_fragsd = 50
 params.tracer_outputtag = 'summary'
 params.tracer_assemble_publish = false
 
@@ -283,17 +285,17 @@ process get_fastq_files_single {
     output:
         set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
         file('numreads.txt') optional true into ch_numreads_fastq_se
-    script:
-    """
-    name=${params.fastqdir}/${samplename}{$params.se_suffix}
-    if [[ ! -e \$name ]]; then
-      echo "Fastq file \$name not found"
+    shell:
+    '''
+    name=!{params.fastqdir}/!{samplename}!{params.se_suffix}
+    if [[ ! -e $name ]]; then
+      echo "Fastq file $name not found"
       false
     else
-      ln -s \$name ${samplename}.fastq.gz
-      echo \$(( \$(zcat \$fname | wc -l) / 4)) > numreads.txt
+      ln -s $name !{samplename}.fastq.gz
+      echo $(( $(zcat $fname | wc -l) / 4)) > numreads.txt
     fi
-    """
+    '''
 }
 
 
@@ -531,13 +533,15 @@ process tracer_assemble {
 
     shell:
     spec = params.tracer_genometag
-    f1gz = reads[0]
-    f2gz = reads[1]
+    reads_stem = reads.collect { it.toString() - params.se_suffix }.join(' ')
+    fragoptions = "--fragment_length ${params.tracer_fraglength} --fragment_sd ${params.tracer_fragsd}"
+    ending = params.singleend ? "--single_end $fragoptions" : ""
     '''
           # ? output created in out_asm/out-${samplename} 
-    zcat  !{f1gz} > f1
-    zcat  !{f2gz} > f2
-    tracer assemble --loci A B D G -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf f1 f2 out-!{samplename} out_asm
+    for f in !{reads_stem}; do
+      zcat $f!{params.se_suffix} > $f
+    done
+    tracer assemble --loci A B D G -p !{task.cpus} !{ending} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf !{reads_stem} out-!{samplename} out_asm
     '''
 }
 

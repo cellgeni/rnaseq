@@ -1,5 +1,11 @@
 
 
+!! Linking in fastq and bam files is done in a very wasteful manner. (This was done to mimic
+  IRODS downloading, but is not necessary). Ideally just make a channel that bypasses
+  linking completely.
+
+
+
 ! does bracer have loci like tracer does?
 
 ! index naming scheme; different versions of aligner (salmon 9/11/13) per genome version (GRCh38)
