@@ -341,21 +341,25 @@ process get_fastq_files {
     output:
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
         file('numreads.txt') optional true into ch_numreads_fastq
-    script:
-    """
-    list=( \$(ls ${params.fastqdir}/${samplename}${params.pe_suffix_pattern}) )
-    if [[ 2 == \${#list[@]} ]]; then
-      f1=\${list[0]}
-      f2=\${list[1]}
-      ln -s \$f1 ${samplename}_1.fastq.gz
-      ln -s \$f2 ${samplename}_2.fastq.gz
-      echo  \$(( \$(zcat \$f1 | wc -l) / 2)) > numreads.txt
-      # TODO: we could do the same for f2 and introduce check. #shouldWe?
+        file('*.lostcause.txt') optional true into ch_lostcause_fastq
+    shell:
+    '''
+    list=( $(ls !{params.fastqdir}/!{samplename}!{params.pe_suffix_pattern}) )
+    if [[ 2 == ${#list[@]} ]]; then
+      f1=${list[0]}
+      f2=${list[1]}
+      numreads=$(( $(zcat $f1 | wc -l) / 4))
+      echo  $numreads > numreads.txt
+      if (( numreads < !{params.min_reads} )); then
+        echo -e "!{samplename}\\tfastqdir\\tlowreads" > !{samplename}.lostcause.txt
+      else
+        ln -s $f1 !{samplename}_1.fastq.gz
+        ln -s $f2 !{samplename}_2.fastq.gz
+      fi
     else
-      echo "File count error sample ${samplename} found (\${list[@]})"
-      false
+      echo -e "!{samplename}\\tfastqdir\\tnotpaired" > !{samplename}.lostcause.txt
     fi
-    """
+    '''
 }
 
 
@@ -556,14 +560,14 @@ process tracer_summarise {
     file('in_asm/*') from ch_tracer_summarise.collect()
 
     output:
-    file('in_asm/filtered_TCRAB_summary')
+    file('in_asm/filtered_TCRABDG_summary')
 
     shell:
     spec = params.tracer_genometag
     '''
           # all the output directories of the form out-{samplename} are subdirectories of in_asm.
-    tracer summarise -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf in_asm
-
+    tracer summarise  --loci A B D G -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf in_asm
+    echo done
     '''
 }
 
@@ -799,7 +803,7 @@ process hisat2_align {
                   // This is slightly hacky. Dangersign. See previous dangersign.
   ch_hisat2_reject
   .map    { it -> [text: "${it[0]}\thisat2\tlowmapping\n"] }
-  .mix(ch_lostcause_irods, ch_lostcause_cram, ch_lostcause_star)
+  .mix(ch_lostcause_irods, ch_lostcause_fastq, ch_lostcause_cram, ch_lostcause_star)
   .set    { ch_lostcause }
 
 
