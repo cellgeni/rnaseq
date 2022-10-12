@@ -383,6 +383,8 @@ process crams_to_fastq {
         // def avail_mem = task.memory == null ? '' : "${ sprintf "%.0f", 0.7 * ( task.memory.toBytes() - 2000000000 ) / task.cpus}"
     def cramfile = "${samplename}.cram"
     """
+    export REF_PATH=${params.REF_PATH}
+    export REF_CACHE=${params.REF_CACHE}
     samtools merge -@ ${task.cpus} -f $cramfile ${crams}
 
     f1=${samplename}_1.fastq.gz
@@ -541,6 +543,7 @@ process tracer_assemble {
     fragoptions = "--fragment_length ${params.tracer_fraglength} --fragment_sd ${params.tracer_fragsd}"
     ending = params.singleend ? "--single_end $fragoptions" : ""
     '''
+    export IGDATA=${params.IGDATA}
           # ? output created in out_asm/out-${samplename} 
     for f in !{reads_stem}; do
       zcat $f!{params.se_suffix} > $f
