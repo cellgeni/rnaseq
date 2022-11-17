@@ -9,6 +9,7 @@ vim: syntax=groovy
  Documentation: https://github.com/cellgeni/rnaseq
  This pipeline was forked from https://github.com/nf-core/rnaseq
  Post-fork development at Wellcome Sanger Institute:
+    Simon Murray <sm42@sanger.ac.uk>
     Stijn van Dongen <svd@sanger.ac.uk>
     Vladimir Kiselev @wikiselev <vk6@sanger.ac.uk>
  Original development by SciLifeLabs
@@ -285,14 +286,15 @@ process get_fastq_files_single {
     output:
         set val(samplename), file("${samplename}.fastq.gz") optional true into ch_fastqs_dirse
         file('numreads.txt') optional true into ch_numreads_fastq_se
-    shell:
+    script:
     '''
-    name=!{params.fastqdir}/!{samplename}!{params.se_suffix}
+    name=${params.fastqdir}/${samplename}${params.se_suffix}
     if [[ ! -e $name ]]; then
       echo "Fastq file $name not found"
       false
     else
-      ln -s $name !{samplename}.fastq.gz
+      ln -s $name ${samplename}.fastq.gz
+      # Need single quotes to allow reads calculation to work
       echo $(( $(zcat $fname | wc -l) / 4)) > numreads.txt
     fi
     '''
@@ -313,13 +315,14 @@ process get_fastq_files_from_bam {
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_bams_dirpe
         file('numreads.txt') optional true into ch_numreads_bam
 
-    shell:
+    script:
     '''
-    bam="!{params.bamdir}/!{samplename}.bam"
-    f1="!{samplename}_1.fastq.gz"
-    f2="!{samplename}_2.fastq.gz"
+    bam="${params.bamdir}/${samplename}.bam"
+    f1="${samplename}_1.fastq.gz"
+    f2="${samplename}_2.fastq.gz"
     if [[ -e $bam  ]]; then
       samtools fastq -N -F 0x900 -@ !{task.cpus} -1 $f1 -2 $f2 $bam
+      # Need single quotes to allow reads calculation to work
       echo  $(( $(zcat $f1 | wc -l) / 2)) > numreads.txt
     else
       echo "File $bam not found"
@@ -342,22 +345,23 @@ process get_fastq_files {
         set val(samplename), file("${samplename}_?.fastq.gz") optional true into ch_fastqs_dirpe
         file('numreads.txt') optional true into ch_numreads_fastq
         file('*.lostcause.txt') optional true into ch_lostcause_fastq
-    shell:
+    script:
     '''
-    list=( $(ls !{params.fastqdir}/!{samplename}!{params.pe_suffix_pattern}) )
+    # Need single quotes to allow list generation to work
+    list=( $(ls ${params.fastqdir}/${samplename}${params.pe_suffix_pattern}) )
     if [[ 2 == ${#list[@]} ]]; then
       f1=${list[0]}
       f2=${list[1]}
       numreads=$(( $(zcat $f1 | wc -l) / 4))
       echo  $numreads > numreads.txt
-      if (( numreads < !{params.min_reads} )); then
-        echo -e "!{samplename}\\tfastqdir\\tlowreads" > !{samplename}.lostcause.txt
+      if (( numreads < ${params.min_reads} )); then
+        echo -e "${samplename}\\tfastqdir\\tlowreads" > ${samplename}.lostcause.txt
       else
-        ln -s $f1 !{samplename}_1.fastq.gz
-        ln -s $f2 !{samplename}_2.fastq.gz
+        ln -s $f1 ${samplename}_1.fastq.gz
+        ln -s $f2 ${samplename}_2.fastq.gz
       fi
     else
-      echo -e "!{samplename}\\tfastqdir\\tnotpaired" > !{samplename}.lostcause.txt
+      echo -e "${samplename}\\tfastqdir\\tnotpaired" > ${samplename}.lostcause.txt
     fi
     '''
 }
@@ -543,7 +547,8 @@ process tracer_assemble {
     fragoptions = "--fragment_length ${params.tracer_fraglength} --fragment_sd ${params.tracer_fragsd}"
     ending = params.singleend ? "--single_end $fragoptions" : ""
     '''
-    export IGDATA=${params.IGDATA}
+    # Need shell rather than script and single quotes to allow reads_stem iteration to work
+    export IGDATA=!{params.IGDATA}
           # ? output created in out_asm/out-${samplename} 
     for f in !{reads_stem}; do
       zcat $f!{params.se_suffix} > $f
@@ -565,13 +570,13 @@ process tracer_summarise {
     output:
     file('in_asm/filtered_TCRABDG_summary')
 
-    shell:
+    script:
     spec = params.tracer_genometag
-    '''
+    """
           # all the output directories of the form out-{samplename} are subdirectories of in_asm.
-    tracer summarise  --loci A B D G -p !{task.cpus} -s !{spec} -c /tracer/docker_helper_files/docker_tracer.conf in_asm
+    tracer summarise  --loci A B D G -p ${task.cpus} -s ${spec} -c /tracer/docker_helper_files/docker_tracer.conf in_asm
     echo done
-    '''
+    """
 }
 
 
@@ -1001,17 +1006,17 @@ process merge_featureCounts {
     output:
     file '*-fc-genecounts.txt'
 
-    shell:
+    script:
     suffix=['star':'.star.gene.fc.txt', 'hisat2':'.hisat2.gene.fc.txt']
     aligner = metafile.baseName   // not strictly necessary
     outputname = "${params.runtag}-${aligner}-fc-genecounts.txt"
     thesuffix  = suffix[aligner] ?: '.txt'
-    '''
-    python3 !{workflow.projectDir}/bin/merge_featurecounts.py        \\
-      --rm-suffix !{thesuffix}                                       \\
+    """
+    python3 ${workflow.projectDir}/bin/merge_featurecounts.py        \\
+      --rm-suffix ${thesuffix}                                       \\
       -c 1 --skip-comments --header                                  \\
-      -o !{outputname} -I !{metafile}
-    '''
+      -o ${outputname} -I ${metafile}
+    """
 }
 
 process merge_salmoncounts {
